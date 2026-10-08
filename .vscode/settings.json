@@ -1,0 +1,16 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^Copy-Item -LiteralPath 'C:\\\\Crm Bom Destino\\\\logLBomDestino\\.jpg' -Destination 'C:\\\\Crm Bom Destino\\\\public\\\\logo-bom-destino\\.jpg' -Force; npm install$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npm audit --omit=dev$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^npm run lint$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

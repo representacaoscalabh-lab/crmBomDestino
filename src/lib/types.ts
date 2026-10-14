@@ -93,6 +93,22 @@ export type Order = {
   totalWeight: number;
 };
 
+export type Bonification = {
+  id: string;
+  bonusNumber: string;
+  issueDate: string;
+  customerId: string;
+  customerName: string;
+  customerCode: string;
+  store: string;
+  customerCity?: string;
+  reason: string;
+  notes: string;
+  items: OrderItem[];
+  totalValue: number;
+  totalWeight: number;
+};
+
 export type NewProduct = Omit<Product, "id" | "measure" | "unitWeight" | "unitPrice" | "weightType" | "expiration" | "associated"> & {
   measure: "KG" | "UN";
   unitWeight: number;

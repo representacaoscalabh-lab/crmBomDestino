@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarDays, Check, ClipboardList, Database, Download, Eye, FileImage, PackageCheck, Pencil, Plus, RefreshCw, Search, ShoppingCart, Trash2, Upload, UserRound, X } from "lucide-react";
+import { CalendarDays, ChevronDown, ClipboardList, Database, Download, Eye, FileText, Filter, PackageCheck, Pencil, Plus, RefreshCw, Search, ShoppingCart, Trash2, Upload, UserRound, X } from "lucide-react";
 import { useCrmStore } from "@/lib/store";
 import { getPackageValues } from "@/lib/product-packaging";
 import { downloadXlsx } from "@/lib/xlsx";
-import { extractOrderLinesFromImages, type OrderScreenshotLine } from "@/lib/order-image-import";
+import { buildNetworkOrderImport, parseNetworkOrderPdf } from "@/lib/network-order-pdf";
 import type { Customer, Order, OrderItem, Product } from "@/lib/types";
 
 type DraftLine = {
@@ -44,6 +44,13 @@ const localDate = () => {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };
+const currentMonthRange = () => {
+  const date = new Date();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const lastDay = String(new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()).padStart(2, "0");
+  return { start: `${date.getFullYear()}-${month}-01`, end: `${date.getFullYear()}-${month}-${lastDay}` };
+};
+const normalizeText = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("pt-BR");
 const money = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const kg = (value: number) => `${value.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} kg`;
 const orderNumber = () => `PED-${Date.now().toString().slice(-7)}`;
@@ -117,25 +124,32 @@ function makeExistingLine(item: OrderItem, products: Product[]): DraftLine {
 }
 
 export default function OrdersPage() {
-  const { orders, products, customers, paymentTerms, addOrders, updateOrder, deleteOrder, refreshData } = useCrmStore();
+  const { orders, products, customers, customerGroups, paymentTerms, addOrders, updateOrder, deleteOrder, deleteOrders, refreshData } = useCrmStore();
+  const defaultDateRange = currentMonthRange();
   const [searchDraft, setSearchDraft] = useState("");
   const [customerNameDraft, setCustomerNameDraft] = useState("");
+  const [cityDraft, setCityDraft] = useState("");
   const [segmentDraft, setSegmentDraft] = useState("");
-  const [statusDraft, setStatusDraft] = useState("");
-  const [startDraft, setStartDraft] = useState("");
-  const [endDraft, setEndDraft] = useState("");
-  const [filters, setFilters] = useState({ search: "", customerName: "", segment: "", status: "", start: "", end: "" });
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importCustomerQuery, setImportCustomerQuery] = useState("");
-  const [importCustomer, setImportCustomer] = useState<Customer | null>(null);
-  const [importFiles, setImportFiles] = useState<File[]>([]);
-  const [importProgress, setImportProgress] = useState(0);
-  const [importError, setImportError] = useState("");
-  const [importing, setImporting] = useState(false);
+  const [networkDraft, setNetworkDraft] = useState("");
+  const [startDraft, setStartDraft] = useState(defaultDateRange.start);
+  const [endDraft, setEndDraft] = useState(defaultDateRange.end);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [filters, setFilters] = useState({ search: "", customerName: "", city: "", segment: "", network: "", start: defaultDateRange.start, end: defaultDateRange.end });
+  const [showNetworkImportModal, setShowNetworkImportModal] = useState(false);
+  const [networkPdf, setNetworkPdf] = useState<File | null>(null);
+  const [networkProgress, setNetworkProgress] = useState(0);
+  const [networkError, setNetworkError] = useState("");
+  const [networkImporting, setNetworkImporting] = useState(false);
+  const [networkProcessed, setNetworkProcessed] = useState(false);
+  const [networkPreview, setNetworkPreview] = useState<Order[]>([]);
+  const [networkWarnings, setNetworkWarnings] = useState<string[]>([]);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
   const [deletingOrder, setDeletingOrder] = useState<Order | null>(null);
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [preOrder, setPreOrder] = useState("");
   const [issueDate, setIssueDate] = useState(localDate);
   const [invoice, setInvoice] = useState("");
@@ -146,27 +160,47 @@ export default function OrdersPage() {
   const [productQuery, setProductQuery] = useState("");
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [formError, setFormError] = useState("");
-  const [importNotice, setImportNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [exportError, setExportError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
+  const filterOptions = useMemo(() => {
+    const customersById = new Map(customers.map((customer) => [customer.id, customer]));
+    const uniqueValues = (values: string[]) => [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right, "pt-BR"));
+    return {
+      cities: uniqueValues([...customers.map((customer) => customer.city), ...orders.map((order) => order.customerCity ?? customersById.get(order.customerId)?.city ?? "")]),
+      segments: uniqueValues(customers.map((customer) => customer.segment ?? "")),
+    };
+  }, [customers, orders]);
   const filtered = useMemo(() => orders.filter((order) => {
     const customer = customers.find((entry) => entry.id === order.customerId);
-    return `${order.preOrder} ${order.customerCode} ${order.invoice}`.toLowerCase().includes(filters.search.toLowerCase())
-      && order.customerName.toLowerCase().includes(filters.customerName.toLowerCase())
+    const searchable = normalizeText(`${order.preOrder} ${order.customerCode} ${order.invoice} ${customer?.document ?? ""}`);
+    return searchable.includes(normalizeText(filters.search))
+      && normalizeText(order.customerName).includes(normalizeText(filters.customerName))
+      && (!filters.city || (order.customerCity || customer?.city || "") === filters.city)
       && (!filters.segment || customer?.segment === filters.segment)
-      && (!filters.status || order.status === filters.status)
+      && (!filters.network || customer?.groupId === filters.network)
       && (!filters.start || order.issueDate >= filters.start)
       && (!filters.end || order.issueDate <= filters.end);
   }), [orders, customers, filters]);
+  const invalidFilterDateRange = Boolean(startDraft && endDraft && startDraft > endDraft);
+  const activeFilterCount = [filters.search, filters.customerName, filters.city, filters.segment, filters.network, filters.start || filters.end].filter(Boolean).length;
+  const hasDraftFiltersToClear = Boolean(searchDraft || customerNameDraft || cityDraft || segmentDraft || networkDraft
+    || startDraft !== defaultDateRange.start || endDraft !== defaultDateRange.end);
   const suggestedCustomers = useMemo(() => customerQuery.trim().length < 2 ? [] : customers.filter((customer) => `${customer.name} ${customer.code} ${customer.city}`.toLowerCase().includes(customerQuery.toLowerCase())).slice(0, 6), [customers, customerQuery]);
   const suggestedProducts = useMemo(() => productQuery.trim().length < 2 ? [] : products.filter((product) => `${product.codeBox} ${product.codeHalfBox} ${product.description}`.toLowerCase().includes(productQuery.toLowerCase())).slice(0, 6), [products, productQuery]);
-  const suggestedImportCustomers = useMemo(() => importCustomerQuery.trim().length < 2 ? [] : customers.filter((customer) => `${customer.name} ${customer.code} ${customer.city} ${customer.store}`.toLowerCase().includes(importCustomerQuery.toLowerCase())).slice(0, 8), [customers, importCustomerQuery]);
   const totalValue = lines.reduce((sum, line) => sum + line.subtotal, 0);
   const totalWeight = lines.reduce((sum, line) => sum + (line.grossWeight || line.totalWeight), 0);
   const totalNetWeight = lines.reduce((sum, line) => sum + line.netWeight, 0);
   const totalUnits = lines.reduce((sum, line) => sum + line.unitQuantity, 0);
+  const viewingCustomer = viewingOrder ? customers.find((customer) => customer.id === viewingOrder.customerId) : undefined;
+  const viewingPaymentTerm = viewingOrder ? paymentTerms.find((term) => term.code === viewingOrder.paymentTerm) : undefined;
+  const viewingGrossWeight = viewingOrder?.items.reduce((sum, item) => sum + (item.grossWeight ?? item.totalWeight), 0) ?? 0;
+  const viewingNetWeight = viewingOrder?.items.reduce((sum, item) => sum + (item.netWeight ?? 0), 0) ?? 0;
+  const viewingUnitCount = viewingOrder?.items.reduce((sum, item) => sum + item.unitQuantity, 0) ?? 0;
+  const viewingPackageCount = viewingOrder?.items.reduce((sum, item) => sum + (item.boxQuantity ?? item.packageQuantity), 0) ?? 0;
+  const selectedOrders = orders.filter((order) => selectedOrderIds.includes(order.id));
+  const allFilteredOrdersSelected = filtered.length > 0 && filtered.every((order) => selectedOrderIds.includes(order.id));
 
   function resetOrderForm() {
     setEditingOrder(null);
@@ -180,111 +214,56 @@ export default function OrdersPage() {
     setProductQuery("");
     setLines([]);
     setFormError("");
-    setImportNotice("");
   }
 
-  function resetImportForm() {
-    setImportCustomerQuery("");
-    setImportCustomer(null);
-    setImportFiles([]);
-    setImportProgress(0);
-    setImportError("");
+  function startNetworkImport() {
+    setNetworkPdf(null);
+    setNetworkProgress(0);
+    setNetworkError("");
+    setNetworkProcessed(false);
+    setNetworkPreview([]);
+    setNetworkWarnings([]);
+    setShowNetworkImportModal(true);
   }
 
-  function startImportOrder() {
-    resetImportForm();
-    setShowImportModal(true);
-  }
-
-  function screenshotLineToDraft(line: OrderScreenshotLine, catalog: Product[]): DraftLine {
-    const normalizedCode = line.productCode.trim().toLowerCase();
-    const numericCode = normalizedCode.replace(/^0+/, "") || "0";
-    const matchesCode = (code: string) => {
-      const normalized = code.trim().toLowerCase();
-      return normalized === normalizedCode || (/^\d+$/.test(normalized) && (normalized.replace(/^0+/, "") || "0") === numericCode);
-    };
-    const exactMatches = catalog.flatMap((candidate) => [
-      ...(matchesCode(candidate.codeBox) ? [{ product: candidate, packageKind: "Caixa" as const }] : []),
-      ...(candidate.codeHalfBox && matchesCode(candidate.codeHalfBox) ? [{ product: candidate, packageKind: "Meia caixa" as const }] : []),
-    ]);
-    const uniqueMatch = exactMatches.length === 1 ? exactMatches[0] : undefined;
-    const product = uniqueMatch?.product;
-    const packageKind = uniqueMatch?.packageKind ?? "Caixa";
-    const draft = product ? makeDraftLine(product, packageKind) : null;
-    const packageQuantity = line.quantity || line.boxQuantity || 1;
-    const unitPrice = line.unitPrice > 0 ? line.unitPrice : draft?.unitPrice ?? 0;
-    const unitsPerPackage = draft?.unitQuantity ?? 0;
-    const quantity = product
-      ? packageQuantity * unitsPerPackage
-      : line.pieces > 0 ? line.pieces : packageQuantity;
-    const discountPercent = Math.min(100, Math.max(0, line.discountPercent));
-    const computedSubtotal = Math.round(quantity * unitPrice * (1 - discountPercent / 100) * 100) / 100;
-    const grossWeight = line.grossWeight || (draft?.grossWeight ?? 0) * packageQuantity;
-    const netWeight = line.netWeight;
-    return {
-      productId: product?.id ?? "",
-      productCode: product ? (packageKind === "Caixa" ? product.codeBox : product.codeHalfBox) : line.productCode,
-      description: product?.description || line.description || "Produto sem descrição",
-      packageKind,
-      packageQuantity,
-      unitQuantity: quantity,
-      packagePrice: unitPrice * quantity / packageQuantity,
-      unitPrice,
-      totalWeight: grossWeight,
-      discountPercent,
-      subtotal: computedSubtotal,
-      boxQuantity: packageQuantity,
-      pieces: quantity,
-      netWeight,
-      grossWeight,
-      boxUnits: product?.quantityPerBox ?? 0,
-      halfUnits: product ? product.quantityPerBox / 2 : 0,
-      boxPrice: draft?.boxPrice ?? unitPrice * quantity / packageQuantity,
-      halfPrice: draft?.halfPrice ?? unitPrice * quantity / packageQuantity / 2,
-      boxWeight: draft?.boxWeight ?? (grossWeight / packageQuantity),
-      halfWeight: draft?.halfWeight ?? (grossWeight / packageQuantity / 2),
-      canChangePackage: Boolean(product?.codeHalfBox.trim()),
-    };
-  }
-
-  async function processOrderImages() {
-    if (!importCustomer) {
-      setImportError("Pesquise e selecione o cliente antes de continuar.");
+  async function readNetworkPdf() {
+    if (!networkPdf) {
+      setNetworkError("Selecione o PDF dos pedidos da rede.");
       return;
     }
-    if (!importFiles.length) {
-      setImportError("Adicione as imagens da lista de produtos e das colunas do pedido.");
-      return;
-    }
-    setImportError("");
-    setImporting(true);
-    setImportProgress(0);
+    setNetworkError("");
+    setNetworkImporting(true);
+    setNetworkProgress(0);
+    setNetworkProcessed(false);
     try {
-      const productCodes = products.flatMap((product) => [product.codeBox, product.codeHalfBox]).filter(Boolean);
-      const capturedLines = await extractOrderLinesFromImages(importFiles, setImportProgress, productCodes);
-      const mappedLines = capturedLines.map((line) => ({ source: line, draft: screenshotLineToDraft(line, products) }));
-      const draftLines = mappedLines.filter(({ draft }) => Boolean(draft.productId)).map(({ draft }) => draft);
-      const missingCodes = [...new Set(mappedLines.filter(({ draft }) => !draft.productId).map(({ source }) => source.productCode || source.description).filter(Boolean))];
-      if (!draftLines.length) {
-        throw new Error(missingCodes.length
-          ? `Nenhum dos ${capturedLines.length} produtos reconhecidos está cadastrado. Confira os códigos no cadastro de produtos antes de importar.`
-          : "Nenhum item de produto foi reconhecido nas imagens.");
-      }
-      resetOrderForm();
-      setSelectedCustomer(importCustomer);
-      setCustomerQuery(`${importCustomer.name} — ${importCustomer.code}`);
-      setPaymentTerm(importCustomer.paymentTerm ?? "");
-      setLines(draftLines);
-      setImportNotice(missingCodes.length
-        ? `${missingCodes.length} produto(s) não encontrado(s) no cadastro e não foram incluídos: ${missingCodes.join(", ")}. Os demais itens foram importados.`
-        : "");
-      setShowImportModal(false);
-      setShowOrderModal(true);
+      const parsedOrders = await parseNetworkOrderPdf(new Uint8Array(await networkPdf.arrayBuffer()), setNetworkProgress);
+      const result = buildNetworkOrderImport(parsedOrders, customers, products, orders);
+      setNetworkPreview(result.orders);
+      setNetworkWarnings(result.warnings);
+      setNetworkProcessed(true);
+      if (!result.orders.length) setNetworkError("Nenhum pedido pôde ser importado. Confira os CNPJs dos clientes e os códigos dos produtos no cadastro.");
     } catch (cause) {
-      console.error("Falha ao interpretar imagens do pedido.", cause);
-      setImportError(cause instanceof Error ? cause.message : "Não foi possível ler as imagens. Tente usar capturas mais nítidas.");
+      console.error("Falha ao ler o PDF de pedidos da rede.", cause);
+      setNetworkError(cause instanceof Error ? cause.message : "Não foi possível ler o PDF selecionado.");
     } finally {
-      setImporting(false);
+      setNetworkImporting(false);
+    }
+  }
+
+  async function saveNetworkOrders() {
+    if (!networkPreview.length) return;
+    setNetworkImporting(true);
+    setNetworkError("");
+    try {
+      await addOrders(networkPreview);
+      setShowNetworkImportModal(false);
+      setNetworkPreview([]);
+      setNetworkWarnings([]);
+    } catch (cause) {
+      console.error("Falha ao salvar os pedidos da rede.", cause);
+      setNetworkError("Não foi possível salvar os pedidos. Verifique a conexão e tente novamente.");
+    } finally {
+      setNetworkImporting(false);
     }
   }
 
@@ -405,8 +384,10 @@ export default function OrdersPage() {
       return;
     }
     const normalizedNumber = preOrder.trim().toUpperCase();
-    if (orders.some((order) => order.preOrder.toUpperCase() === normalizedNumber && order.id !== editingOrder?.id)) {
-      setFormError("Já existe um pedido com esse número.");
+    if (orders.some((order) => order.preOrder.toUpperCase() === normalizedNumber
+      && (order.customerId === selectedCustomer.id || !order.customerId)
+      && order.id !== editingOrder?.id)) {
+      setFormError("Já existe um pedido com esse número para este cliente.");
       return;
     }
     const items = lines.map((line) => line.originalItem && !line.canChangePackage
@@ -471,6 +452,39 @@ export default function OrdersPage() {
     }
   }
 
+  async function confirmDeleteSelectedOrders() {
+    const ids = selectedOrders.map((order) => order.id);
+    if (!ids.length) {
+      setConfirmBulkDelete(false);
+      return;
+    }
+    setBulkDeleting(true);
+    try {
+      await deleteOrders(ids);
+      setSelectedOrderIds((selected) => selected.filter((id) => !ids.includes(id)));
+      setConfirmBulkDelete(false);
+    } catch (error) {
+      console.error("Falha ao excluir pedidos selecionados.", error);
+      setExportError("Não foi possível excluir todos os pedidos selecionados. Verifique a conexão e tente novamente.");
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
+
+  function toggleFilteredOrderSelection(checked: boolean) {
+    setSelectedOrderIds((selected) => {
+      if (checked) return [...new Set([...selected, ...filtered.map((order) => order.id)])];
+      const filteredIds = new Set(filtered.map((order) => order.id));
+      return selected.filter((id) => !filteredIds.has(id));
+    });
+  }
+
+  function toggleOrderSelection(id: string, checked: boolean) {
+    setSelectedOrderIds((selected) => checked
+      ? [...new Set([...selected, id])]
+      : selected.filter((selectedId) => selectedId !== id));
+  }
+
   async function downloadSingleOrder(order: Order) {
     try { setExportError(""); await exportOrders([order]); }
     catch (error) { console.error("Falha ao exportar pedido.", error); setExportError("Não foi possível exportar o pedido."); }
@@ -484,47 +498,50 @@ export default function OrdersPage() {
     finally { setRefreshing(false); }
   }
 
-  async function exportFiltered() {
-    try {
-      setExportError("");
-      await exportOrders(filtered);
-    } catch (error) {
-      console.error("Falha ao exportar pedidos.", error);
-      setExportError("Não foi possível exportar os pedidos.");
-    }
-  }
-
   return <div className="page-content module-content order-page">
     <section className="panel module-panel order-module-panel">
       <div className="orders-page-heading">
         <div className="orders-page-title"><span className="module-title-icon"><ShoppingCart size={21} /></span><h1>Pedidos</h1></div>
         <div className="orders-page-actions">
-          <div className="orders-firebase-badge"><span className="orders-database-icon"><Database size={17} /></span><span><strong>Dados do Firebase</strong><small>Atualiza em tempo real</small></span></div>
-          <button className="button button-outline orders-refresh-button" onClick={() => void refreshOrders()} disabled={refreshing}><RefreshCw size={14} className={refreshing ? "spin" : ""} /> {refreshing ? "Atualizando" : "Atualizar"}</button>
-          <button className="button button-outline orders-import-button" onClick={startImportOrder}><FileImage size={15} /> Importar pedido</button>
-          <button className="button button-outline orders-utility-button" onClick={() => { void exportFiltered(); }} title="Exportar pedidos filtrados" aria-label="Exportar pedidos filtrados"><Download size={16} /></button>
+          <div className="orders-sync-control">
+            <div className="orders-firebase-badge"><span className="orders-database-icon"><Database size={15} /></span><span><strong>Firebase</strong><small>Tempo real</small></span></div>
+            <button className="orders-refresh-button" onClick={() => void refreshOrders()} disabled={refreshing} title={refreshing ? "Atualizando pedidos" : "Atualizar pedidos"} aria-label={refreshing ? "Atualizando pedidos" : "Atualizar pedidos"}><RefreshCw size={14} className={refreshing ? "spin" : ""} /></button>
+          </div>
+          <button className="button button-outline orders-import-button" onClick={startNetworkImport}><FileText size={15} /> Importar pedido Mart Minas (PDF)</button>
           <button className="button button-primary orders-new-button" onClick={openCreateOrder}><Plus size={16} /> Novo pedido</button>
         </div>
       </div>
       <div className="order-filter-card">
-        <div className="order-filter-grid">
-          <label className="filter-field"><span>Código do cliente</span><div className="search-field"><Search size={15} /><input value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Código cliente..." /></div></label>
-          <label className="filter-field"><span>Nome do cliente</span><div className="search-field"><Search size={15} /><input value={customerNameDraft} onChange={(event) => setCustomerNameDraft(event.target.value)} placeholder="Nome cliente..." /></div></label>
-          <label className="filter-field"><span>Segmento</span><select value={segmentDraft} onChange={(event) => setSegmentDraft(event.target.value)}><option value="">Todos os Segmentos</option>{Array.from(new Set(customers.map((customer) => customer.segment).filter((segment): segment is string => Boolean(segment)))).sort().map((segment) => <option key={segment} value={segment}>{segment}</option>)}</select></label>
-          <label className="filter-field"><span>Status do pedido</span><select value={statusDraft} onChange={(event) => setStatusDraft(event.target.value)}><option value="">Todos os Status</option><option value="normal">Faturado</option><option value="wallet">Em carteira</option></select></label>
-          <label className="filter-field"><span>Data De</span><div className="date-input-wrap"><input type="date" value={startDraft} onChange={(event) => setStartDraft(event.target.value)} /></div></label>
-          <label className="filter-field"><span>Data Até</span><div className="date-input-wrap"><input type="date" value={endDraft} onChange={(event) => setEndDraft(event.target.value)} /></div></label>
+        <div className="order-filter-heading">
+          <span className="order-filter-icon"><Filter size={17} /></span>
+          <div><h2>Filtros</h2><p>Refine a lista por pedido, cliente ou período.</p></div>
+          <span className="order-filter-count">{activeFilterCount === 0 ? "Sem filtros ativos" : `${activeFilterCount} filtro${activeFilterCount === 1 ? "" : "s"} ativo${activeFilterCount === 1 ? "" : "s"}`}</span>
         </div>
-        <div className="order-filter-actions"><button className="button button-primary" onClick={() => setFilters({ search: searchDraft, customerName: customerNameDraft, segment: segmentDraft, status: statusDraft, start: startDraft, end: endDraft })}>Aplicar</button><button className="button button-light" onClick={() => { setSearchDraft(""); setCustomerNameDraft(""); setSegmentDraft(""); setStatusDraft(""); setStartDraft(""); setEndDraft(""); setFilters({ search: "", customerName: "", segment: "", status: "", start: "", end: "" }); }}><X size={14} /> Limpar</button></div>
+        <div className="order-filter-grid">
+          <label className="filter-field"><span>Pedido, NF, código ou CNPJ</span><div className="search-field"><Search size={15} /><input value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Número, código ou CNPJ..." /></div></label>
+          <label className="filter-field"><span>Nome do cliente</span><div className="search-field"><Search size={15} /><input value={customerNameDraft} onChange={(event) => setCustomerNameDraft(event.target.value)} placeholder="Nome do cliente..." /></div></label>
+          <label className="filter-field"><span>Cidade</span><select value={cityDraft} onChange={(event) => setCityDraft(event.target.value)}><option value="">Todas as cidades</option>{filterOptions.cities.map((city) => <option key={city} value={city}>{city}</option>)}</select></label>
+          <label className="filter-field"><span>Período</span><div className="order-date-range"><div className="date-input-wrap"><input aria-label="Data inicial" type="date" max={endDraft || undefined} value={startDraft} onChange={(event) => setStartDraft(event.target.value)} /></div><span aria-hidden="true">até</span><div className="date-input-wrap"><input aria-label="Data final" type="date" min={startDraft || undefined} value={endDraft} onChange={(event) => setEndDraft(event.target.value)} /></div></div></label>
+        </div>
+        <div className="order-more-filters-row">
+          <button type="button" className="order-more-filters-toggle" aria-expanded={showMoreFilters} onClick={() => setShowMoreFilters((show) => !show)}><ChevronDown size={15} /> {showMoreFilters ? "Menos filtros" : "Mais filtros"}{(segmentDraft || networkDraft) && <span>· Filtro adicional selecionado</span>}</button>
+          {showMoreFilters && <>
+            <label className="filter-field order-advanced-filter"><span>Rede</span><select value={networkDraft} onChange={(event) => setNetworkDraft(event.target.value)}><option value="">Todas as redes</option>{customerGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
+            <label className="filter-field order-advanced-filter"><span>Segmento</span><select value={segmentDraft} onChange={(event) => setSegmentDraft(event.target.value)}><option value="">Todos os segmentos</option>{filterOptions.segments.map((segment) => <option key={segment} value={segment}>{segment}</option>)}</select></label>
+          </>}
+        </div>
+        <div className="order-filter-actions"><span>{activeFilterCount} {activeFilterCount === 1 ? "filtro aplicado" : "filtros aplicados"}</span><div><button className="button button-primary" onClick={() => setFilters({ search: searchDraft, customerName: customerNameDraft, city: cityDraft, segment: segmentDraft, network: networkDraft, start: startDraft, end: endDraft })} disabled={invalidFilterDateRange}>Aplicar filtros</button><button className="button button-light" onClick={() => { setSearchDraft(""); setCustomerNameDraft(""); setCityDraft(""); setSegmentDraft(""); setNetworkDraft(""); setStartDraft(defaultDateRange.start); setEndDraft(defaultDateRange.end); setFilters({ search: "", customerName: "", city: "", segment: "", network: "", start: defaultDateRange.start, end: defaultDateRange.end }); }} disabled={!hasDraftFiltersToClear}><X size={14} /> Limpar filtros</button></div></div>
       </div>
+      {invalidFilterDateRange && <div className="import-feedback feedback-warning" role="alert">A data inicial não pode ser posterior à data final.</div>}
       {exportError && <div className="import-feedback feedback-warning" role="alert">{exportError}</div>}
     </section>
 
     <section className="panel order-list-panel">
-      <div className="order-count-bar"><span>Mostrando {filtered.length} de {orders.length} pedido(s)</span></div>
-      {filtered.length ? <div className="table-wrap order-table-wrap"><table><thead><tr><th>DATA</th><th>CLIENTE</th><th>CIDADE</th><th>TOTAL</th><th>PESO</th><th>ITENS</th><th className="order-actions-heading">AÇÕES</th></tr></thead><tbody>{filtered.map((order) => {
+      <div className="order-count-bar"><span>Mostrando {filtered.length} de {orders.length} pedido(s)</span>{selectedOrders.length > 0 && <div className="order-bulk-actions"><span>{selectedOrders.length} selecionado(s)</span><button type="button" className="button button-danger" onClick={() => setConfirmBulkDelete(true)}><Trash2 size={14} /> Excluir selecionados</button></div>}</div>
+      {filtered.length ? <div className="table-wrap order-table-wrap"><table><thead><tr><th className="order-select-heading"><input type="checkbox" aria-label="Selecionar todos os pedidos filtrados" checked={allFilteredOrdersSelected} onChange={(event) => toggleFilteredOrderSelection(event.target.checked)} /></th><th>DATA</th><th>CLIENTE</th><th>CIDADE</th><th>TOTAL</th><th>PESO</th><th>ITENS</th><th className="order-actions-heading">AÇÕES</th></tr></thead><tbody>{filtered.map((order) => {
         const customer = customers.find((entry) => entry.id === order.customerId);
         return <tr key={order.id}>
+          <td className="order-select-cell"><input type="checkbox" aria-label={`Selecionar pedido ${order.preOrder}`} checked={selectedOrderIds.includes(order.id)} onChange={(event) => toggleOrderSelection(order.id, event.target.checked)} /></td>
           <td className="order-date-cell">{order.issueDate}</td>
           <td><strong className="order-customer-name">{order.customerName}</strong><small className="order-customer-code">Cód. {order.customerCode || "—"}</small></td>
           <td>{order.customerCity || customer?.city || "—"}</td><td className="order-value">{money(order.totalValue)}</td><td>{kg(order.totalWeight)}</td><td>{order.items.length}</td>
@@ -533,51 +550,51 @@ export default function OrdersPage() {
       })}</tbody></table></div> : <div className="page-empty"><span className="page-empty-icon"><ShoppingCart size={23} /></span><strong>Nenhum pedido encontrado</strong><p>{orders.length ? "Ajuste os filtros aplicados ou cadastre um novo pedido." : products.length ? "Cadastre ou importe pedidos para acompanhar as vendas por aqui." : "Cadastre produtos primeiro para lançar pedidos."}</p>{orders.length === 0 && (products.length ? <button className="button button-primary" onClick={openCreateOrder}><Plus size={16} /> Criar primeiro pedido</button> : <a href="/produtos" className="button button-outline"><PackageCheck size={16} /> Cadastrar produtos</a>)}</div>}
     </section>
 
-    {showImportModal && <div className="modal-backdrop order-image-import-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !importing) setShowImportModal(false); }}>
-      <section className="modal-card order-image-import-modal" role="dialog" aria-modal="true" aria-labelledby="order-image-import-title">
+    {showNetworkImportModal && <div className="modal-backdrop order-image-import-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !networkImporting) setShowNetworkImportModal(false); }}>
+      <section className="modal-card order-image-import-modal network-order-import-modal" role="dialog" aria-modal="true" aria-labelledby="network-order-import-title">
         <div className="order-editor-heading">
-          <div className="order-editor-icon"><FileImage size={21} /></div>
-          <div><p className="eyebrow">IMPORTAÇÃO INTELIGENTE</p><h2 id="order-image-import-title">Importar pedido por imagens</h2><p>Selecione o cliente e envie as capturas das telas do pedido.</p></div>
-          <button type="button" className="icon-button" aria-label="Fechar" disabled={importing} onClick={() => setShowImportModal(false)}><X size={20} /></button>
+          <div className="order-editor-icon"><FileText size={21} /></div>
+          <div><p className="eyebrow">IMPORTAÇÃO DE REDE</p><h2 id="network-order-import-title">Importar pedidos do PDF</h2><p>Os pedidos e as filiais serão identificados pelo CNPJ no arquivo.</p></div>
+          <button type="button" className="icon-button" aria-label="Fechar" disabled={networkImporting} onClick={() => setShowNetworkImportModal(false)}><X size={20} /></button>
         </div>
         <div className="order-image-import-body">
           <section className="order-import-step">
-            <div className="order-import-step-heading"><span>1</span><div><strong>Selecione o cliente</strong><small>Digite o código ou nome e confirme a loja correta.</small></div></div>
-            {importCustomer ? <div className="order-selected-customer">
-              <div className="selected-customer-avatar"><UserRound size={18} /></div><div className="selected-customer-info"><strong>{importCustomer.name}</strong><span>Código {importCustomer.code} · Loja {importCustomer.store || "—"} · {importCustomer.city || "Cidade não informada"}</span></div>
-              <button type="button" className="button button-light" disabled={importing} onClick={() => { setImportCustomer(null); setImportCustomerQuery(""); }}><X size={14} /> Trocar</button>
-            </div> : <div className="order-autocomplete">
-              <div className="search-field"><Search size={17} /><input autoComplete="off" value={importCustomerQuery} onChange={(event) => setImportCustomerQuery(event.target.value)} placeholder="Buscar por nome, código ou cidade..." /></div>
-              {importCustomerQuery.trim().length >= 2 && suggestedImportCustomers.length === 0 && <p className="order-no-suggestions">Nenhum cliente encontrado.</p>}
-              {suggestedImportCustomers.length > 0 && <div className="order-suggestions">{suggestedImportCustomers.map((customer) => <button type="button" key={customer.id} onClick={() => { setImportCustomer(customer); setImportCustomerQuery(`${customer.name} — ${customer.code}`); setImportError(""); }}><span><strong>{customer.name}</strong><small>Cód. {customer.code} · {customer.city || "Cidade não informada"} · Loja {customer.store || "—"}</small></span><Check size={17} /></button>)}</div>}
-            </div>}
-          </section>
-          <section className="order-import-step">
-            <div className="order-import-step-heading"><span>2</span><div><strong>Adicione as capturas das telas</strong><small>As imagens podem ser selecionadas em qualquer ordem. O OCR é processado neste dispositivo.</small></div></div>
-            <label className={`order-image-dropzone ${importing ? "order-image-dropzone-disabled" : ""}`}>
-              <input type="file" accept="image/*" multiple disabled={importing} onChange={(event) => {
-                const selectedFiles = Array.from(event.currentTarget.files ?? []);
-                const unsupported = selectedFiles.find((file) => !file.type.startsWith("image/"));
-                const tooLarge = selectedFiles.find((file) => file.size > 12 * 1024 * 1024);
-                if (unsupported) setImportError(`"${unsupported.name}" não é uma imagem suportada.`);
-                else if (tooLarge) setImportError(`"${tooLarge.name}" excede o limite de 12 MB.`);
-                else {
-                  setImportError("");
-                  setImportFiles((current) => [...current, ...selectedFiles.filter((file) => !current.some((existing) => existing.name === file.name && existing.size === file.size))]);
+            <div className="order-import-step-heading"><span>1</span><div><strong>Selecione o PDF da rede</strong><small>O arquivo é lido localmente neste navegador.</small></div></div>
+            <label className={`order-image-dropzone ${networkImporting ? "order-image-dropzone-disabled" : ""}`}>
+              <input type="file" accept=".pdf,application/pdf" disabled={networkImporting} onChange={(event) => {
+                const file = event.currentTarget.files?.[0] ?? null;
+                if (file && file.size > 50 * 1024 * 1024) {
+                  setNetworkError("O PDF excede o limite de 50 MB.");
+                  setNetworkPdf(null);
+                } else {
+                  setNetworkError("");
+                  setNetworkPdf(file);
+                  setNetworkProcessed(false);
+                  setNetworkPreview([]);
+                  setNetworkWarnings([]);
                 }
                 event.currentTarget.value = "";
               }} />
-              <span className="order-image-drop-icon"><Upload size={21} /></span><span><strong>Escolher imagens</strong><small>JPG, PNG ou WEBP · até 12 MB por imagem</small></span>
-              <span className="button button-outline">Selecionar arquivos</span>
+              <span className="order-image-drop-icon"><Upload size={21} /></span><span><strong>{networkPdf ? networkPdf.name : "Escolher PDF"}</strong><small>PDF · até 50 MB</small></span>
+              <span className="button button-outline">Selecionar arquivo</span>
             </label>
-                <div className="order-image-guide"><strong>Leitura das capturas:</strong><span>O código localiza o produto cadastrado; produtos sem correspondência precisam ser vinculados antes de salvar.</span><span>Quant. representa caixas; Preço representa o valor por unidade. A quantidade de unidades é calculada pelo cadastro do produto.</span><span>Envie também a tela com peso líquido e bruto para preencher esses valores.</span></div>
-            {importFiles.length > 0 && <div className="order-image-file-list" aria-label="Imagens selecionadas">{importFiles.map((file, index) => <div className="order-image-file" key={`${file.name}-${index}`}><FileImage size={16} /><span><strong>{file.name}</strong><small>{(file.size / 1024 / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB</small></span><button type="button" aria-label={`Remover ${file.name}`} disabled={importing} onClick={() => setImportFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}><X size={15} /></button></div>)}</div>}
+            <div className="order-image-guide"><strong>Campos utilizados:</strong><span>CNPJ identifica o cliente/filial; Cod Forn corresponde ao código do produto; a quantidade importada é Qtde menos Qtd.Canc.</span><span>Valor Unit. é o preço por embalagem. O peso e os totais são calculados com os dados do cadastro de produtos.</span></div>
           </section>
-          {importing && <div className="order-image-progress" role="status"><div><span>Identificando produtos, quantidades, preços e pesos...</span><strong>{Math.round(importProgress * 100)}%</strong></div><progress max="100" value={Math.round(importProgress * 100)} /></div>}
-          {importError && <div className="import-feedback feedback-warning" role="alert">{importError}</div>}
-          <p className="order-image-privacy">A leitura acontece localmente no navegador. Nenhuma imagem é enviada para um serviço externo; revise todas as informações antes de salvar o pedido.</p>
+          {networkImporting && <div className="order-image-progress" role="status"><div><span>Lendo páginas do PDF...</span><strong>{Math.round(networkProgress * 100)}%</strong></div><progress max="100" value={Math.round(networkProgress * 100)} /></div>}
+          {networkError && <div className="import-feedback feedback-warning" role="alert">{networkError}</div>}
+          {networkProcessed && <section className="network-import-results" aria-live="polite">
+            <div className="network-import-summary"><strong>{networkPreview.length} pedido(s) pronto(s) para importar</strong><span>{networkWarnings.length} aviso(s) · pedidos já existentes e itens sem correspondência são ignorados</span></div>
+            {networkPreview.length > 0 && <div className="table-wrap network-import-table-wrap"><table><thead><tr><th>PEDIDO</th><th>CLIENTE / CNPJ</th><th>ITENS</th><th>VALOR</th><th>PESO</th></tr></thead><tbody>{networkPreview.map((order) => <tr key={order.id}><td>{order.preOrder}</td><td><strong>{order.customerName}</strong><small>{order.customerCode} · {order.customerId ? customers.find((customer) => customer.id === order.customerId)?.document : ""}</small></td><td>{order.items.length}</td><td>{money(order.totalValue)}</td><td>{kg(order.totalWeight)}</td></tr>)}</tbody></table></div>}
+            {networkWarnings.length > 0 && <details className="network-import-warnings"><summary>Ver avisos da importação ({networkWarnings.length})</summary><ul>{networkWarnings.slice(0, 30).map((warning, index) => <li key={`${index}-${warning}`}>{warning}</li>)}</ul>{networkWarnings.length > 30 && <small>Mais {networkWarnings.length - 30} aviso(s) não exibidos.</small>}</details>}
+          </section>}
+          <p className="order-image-privacy">Nenhum dado do PDF é enviado para um serviço externo. Confira os pedidos e avisos antes de confirmar a importação.</p>
         </div>
-        <div className="order-editor-footer"><button type="button" className="button button-light" disabled={importing} onClick={() => setShowImportModal(false)}>Cancelar</button><button type="button" className="button button-primary" disabled={importing || !importCustomer || !importFiles.length} onClick={() => void processOrderImages()}>{importing ? "Lendo imagens..." : "Ler imagens e revisar pedido"}</button></div>
+        <div className="order-editor-footer">
+          <button type="button" className="button button-light" disabled={networkImporting} onClick={() => setShowNetworkImportModal(false)}>Cancelar</button>
+          {networkProcessed
+            ? <button type="button" className="button button-primary" disabled={networkImporting || !networkPreview.length} onClick={() => void saveNetworkOrders()}>{networkImporting ? "Salvando..." : `Importar ${networkPreview.length} pedido(s)`}</button>
+            : <button type="button" className="button button-primary" disabled={networkImporting || !networkPdf} onClick={() => void readNetworkPdf()}>{networkImporting ? "Lendo PDF..." : "Ler e conferir pedidos"}</button>}
+        </div>
       </section>
     </div>}
 
@@ -644,13 +661,61 @@ export default function OrdersPage() {
           </section>
 
           {formError && <div className="import-feedback feedback-warning" role="alert">{formError}</div>}
-          {importNotice && <div className="import-feedback feedback-warning" role="status">{importNotice}</div>}
         </div>
         <div className="order-editor-footer"><button type="button" className="button button-light" onClick={() => setShowOrderModal(false)}>Cancelar</button><button type="submit" className="button button-primary" disabled={saving}>{saving ? "Salvando..." : editingOrder ? "Salvar alterações" : "Salvar pedido"}</button></div>
       </form>
     </section></div>}
 
-    {viewingOrder && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setViewingOrder(null); }}><section className="modal-card order-view-modal" role="dialog" aria-modal="true" aria-labelledby="order-view-title"><div className="order-editor-heading"><div className="order-editor-icon"><ClipboardList size={21} /></div><div><p className="eyebrow">DETALHES DO PEDIDO</p><h2 id="order-view-title">{viewingOrder.preOrder}</h2><p>{viewingOrder.customerName} · {new Date(`${viewingOrder.issueDate}T12:00:00`).toLocaleDateString("pt-BR")}</p></div><button className="icon-button" aria-label="Fechar" onClick={() => setViewingOrder(null)}><X size={20} /></button></div><div className="order-view-body"><div className="order-view-summary"><div><span>Cliente</span><strong>{viewingOrder.customerName}</strong></div><div><span>Cidade</span><strong>{viewingOrder.customerCity || customers.find((customer) => customer.id === viewingOrder.customerId)?.city || "—"}</strong></div><div><span>Condição</span><strong>{paymentTerms.find((term) => term.code === viewingOrder.paymentTerm) ? `${viewingOrder.paymentTerm} — ${paymentTerms.find((term) => term.code === viewingOrder.paymentTerm)?.term}` : viewingOrder.paymentTerm || "—"}</strong></div><div><span>Nota fiscal</span><strong>{viewingOrder.invoice || "—"}</strong></div></div><div className="order-items-table-wrap"><table className="order-items-table"><thead><tr><th>PRODUTO</th><th>CÓDIGO</th><th>EMBALAGEM</th><th>QUANT.</th><th>CAIXAS</th><th>PEÇAS</th><th>SUBTOTAL</th><th>P. LÍQ.</th><th>P. BRUTO</th></tr></thead><tbody>{viewingOrder.items.map((item, index) => <tr key={`${item.productId}-${index}`}><td><strong>{item.description}</strong></td><td>{item.productCode}</td><td>{item.packageKind}</td><td>{item.unitQuantity}</td><td>{item.boxQuantity ?? item.packageQuantity}</td><td>{item.pieces ?? item.unitQuantity}</td><td>{money(item.subtotal ?? item.packagePrice * item.packageQuantity)}</td><td>{kg(item.netWeight ?? 0)}</td><td>{kg(item.grossWeight ?? item.totalWeight)}</td></tr>)}</tbody></table></div><div className="order-view-totals"><span>{viewingOrder.items.length} produto(s) · {kg(viewingOrder.totalWeight)} peso bruto</span><strong>{money(viewingOrder.totalValue)}</strong></div></div><div className="order-editor-footer"><button className="button button-light" onClick={() => setViewingOrder(null)}>Fechar</button><button className="button button-primary" onClick={() => { setViewingOrder(null); openEditOrder(viewingOrder); }}><Pencil size={15} /> Editar pedido</button></div></section></div>}
+    {viewingOrder && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setViewingOrder(null); }}>
+      <section className="modal-card order-view-modal" role="dialog" aria-modal="true" aria-labelledby="order-view-title">
+        <div className="order-editor-heading">
+          <div className="order-editor-icon"><ClipboardList size={21} /></div>
+          <div><p className="eyebrow">DETALHES DO PEDIDO</p><h2 id="order-view-title">{viewingOrder.preOrder}</h2><p>{viewingOrder.customerName} · {new Date(`${viewingOrder.issueDate}T12:00:00`).toLocaleDateString("pt-BR")}</p></div>
+          <button className="icon-button" aria-label="Fechar" onClick={() => setViewingOrder(null)}><X size={20} /></button>
+        </div>
+        <div className="order-view-body">
+          <section className="order-view-section">
+            <div className="order-view-section-heading"><ClipboardList size={16} /><h3>Resumo do pedido</h3></div>
+            <div className="order-view-summary">
+              <div><span>Número do pedido</span><strong>{viewingOrder.preOrder}</strong></div>
+              <div><span>Data</span><strong>{new Date(`${viewingOrder.issueDate}T12:00:00`).toLocaleDateString("pt-BR")}</strong></div>
+              <div><span>Status</span><strong>{viewingOrder.status === "wallet" ? "Em carteira" : "Faturado"}</strong></div>
+              <div><span>Nota fiscal</span><strong>{viewingOrder.invoice || "Não informada"}</strong></div>
+              <div><span>Condição de pagamento</span><strong>{viewingPaymentTerm ? `${viewingPaymentTerm.code} — ${viewingPaymentTerm.term}` : viewingOrder.paymentTerm || "Não informada"}</strong></div>
+            </div>
+          </section>
+          <section className="order-view-section">
+            <div className="order-view-section-heading"><UserRound size={16} /><h3>Dados do cliente / loja</h3></div>
+            <div className="order-view-summary order-view-customer">
+              <div><span>Razão/nome</span><strong>{viewingOrder.customerName}</strong></div>
+              <div><span>Código do cliente</span><strong>{viewingOrder.customerCode || viewingCustomer?.code || "—"}</strong></div>
+              <div><span>CNPJ / CPF</span><strong>{viewingCustomer?.document || "Não informado"}</strong></div>
+              <div><span>Loja</span><strong>{viewingOrder.store || viewingCustomer?.store || "—"}</strong></div>
+              <div><span>Cidade / UF</span><strong>{[viewingOrder.customerCity || viewingCustomer?.city, viewingCustomer?.state].filter(Boolean).join(" / ") || "Não informada"}</strong></div>
+              <div className="order-view-customer-wide"><span>Endereço</span><strong>{[viewingCustomer?.address, viewingCustomer?.neighborhood].filter(Boolean).join(" — ") || "Não informado"}</strong></div>
+              <div><span>Telefone</span><strong>{viewingCustomer?.phone || "Não informado"}</strong></div>
+              <div><span>E-mail</span><strong>{viewingCustomer?.email || "Não informado"}</strong></div>
+            </div>
+          </section>
+          <section className="order-view-section">
+            <div className="order-view-section-heading"><PackageCheck size={16} /><h3>Itens do pedido <span>{viewingOrder.items.length}</span></h3></div>
+            {viewingOrder.items.length > 0
+              ? <div className="order-items-table-wrap"><table className="order-items-table order-view-items-table"><thead><tr><th>PRODUTO</th><th>CÓDIGO</th><th>EMBALAGEM</th><th>QUANTIDADE</th><th>CAIXAS</th><th>PEÇAS</th><th>PREÇO / UN.</th><th>SUBTOTAL</th><th>P. LÍQ.</th><th>P. BRUTO</th></tr></thead><tbody>{viewingOrder.items.map((item, index) => <tr key={`${item.productId}-${index}`}><td><strong>{item.description}</strong></td><td>{item.productCode}</td><td>{item.packageKind}</td><td>{item.unitQuantity}</td><td>{item.boxQuantity ?? item.packageQuantity}</td><td>{item.pieces ?? item.unitQuantity}</td><td>{money(item.unitPrice ?? item.packagePrice / Math.max(1, item.unitQuantity / Math.max(1, item.packageQuantity)))}</td><td>{money(item.subtotal ?? item.packagePrice * item.packageQuantity)}</td><td>{kg(item.netWeight ?? 0)}</td><td>{kg(item.grossWeight ?? item.totalWeight)}</td></tr>)}</tbody></table></div>
+              : <div className="order-view-no-items">Este pedido não possui itens cadastrados.</div>}
+          </section>
+          <div className="order-view-metrics">
+            <div><span>Produtos</span><strong>{viewingOrder.items.length}</strong></div>
+            <div><span>Caixas</span><strong>{viewingPackageCount}</strong></div>
+            <div><span>Peças</span><strong>{viewingUnitCount}</strong></div>
+            <div><span>Peso líquido</span><strong>{kg(viewingNetWeight)}</strong></div>
+            <div><span>Peso bruto</span><strong>{kg(viewingGrossWeight)}</strong></div>
+            <div className="order-view-grand-total"><span>Valor total do pedido</span><strong>{money(viewingOrder.totalValue)}</strong></div>
+          </div>
+        </div>
+        <div className="order-editor-footer"><button className="button button-light" onClick={() => setViewingOrder(null)}>Fechar</button><button className="button button-primary" onClick={() => { setViewingOrder(null); openEditOrder(viewingOrder); }}><Pencil size={15} /> Editar pedido</button></div>
+      </section>
+    </div>}
     {deletingOrder && <div className="modal-backdrop" role="presentation"><section className="modal-card order-delete-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-order-title"><div className="order-editor-icon order-delete-icon"><Trash2 size={21} /></div><h2 id="delete-order-title">Excluir pedido?</h2><p>O pedido <strong>{deletingOrder.preOrder}</strong> de <strong>{deletingOrder.customerName}</strong> será removido permanentemente.</p><div className="order-editor-footer"><button className="button button-light" onClick={() => setDeletingOrder(null)}>Cancelar</button><button className="button button-danger" onClick={() => void confirmDeleteOrder()}>Excluir pedido</button></div></section></div>}
+    {confirmBulkDelete && <div className="modal-backdrop" role="presentation"><section className="modal-card order-delete-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-selected-orders-title"><div className="order-editor-icon order-delete-icon"><Trash2 size={21} /></div><h2 id="delete-selected-orders-title">Excluir pedidos selecionados?</h2><p><strong>{selectedOrders.length} pedido(s)</strong> serão removidos permanentemente do Firebase.</p><div className="order-editor-footer"><button className="button button-light" disabled={bulkDeleting} onClick={() => setConfirmBulkDelete(false)}>Cancelar</button><button className="button button-danger" disabled={bulkDeleting || !selectedOrders.length} onClick={() => void confirmDeleteSelectedOrders()}>{bulkDeleting ? "Excluindo..." : "Excluir pedidos"}</button></div></section></div>}
   </div>;
 }

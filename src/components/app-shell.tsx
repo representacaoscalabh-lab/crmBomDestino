@@ -10,10 +10,12 @@ import {
   ChevronUp,
   ClipboardList,
   Download,
+  Gift,
   LayoutDashboard,
   LogOut,
   Menu,
   Moon,
+  Network,
   Package,
   Settings,
   ShoppingCart,
@@ -32,13 +34,15 @@ const navigation = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/clientes", label: "Clientes", icon: UsersRound },
   { href: "/pedidos", label: "Pedidos", icon: ShoppingCart },
+  { href: "/bonificacoes", label: "Bonificações", icon: Gift },
   { href: "/carteira", label: "Carteira", icon: Wallet },
-  { href: "/exportacao", label: "Exportação", icon: Download },
+  { href: "/exportacao", label: "Importações e exportações", icon: Download },
   { href: "/produtos", label: "Produtos", icon: Package },
   { href: "/metas", label: "Metas", icon: Target },
 ];
 
 const reportLinks = [
+  { href: "/acompanhamento-redes", label: "Acompanhamento de Redes", icon: Network },
   { href: "/relatorios", label: "Relatórios", icon: ClipboardList },
   { href: "/graficos", label: "Gráficos", icon: LayoutDashboard },
   { href: "/crescimento/clientes", label: "Crescimento de Clientes", icon: TrendingUp },
@@ -50,7 +54,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { crmUser, signOutUser } = useAuth();
   const { dataError } = useCrmStore();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [reportsOpen, setReportsOpen] = useState(() => pathname.startsWith("/relatorios") || pathname.startsWith("/graficos") || pathname.startsWith("/crescimento"));
+  const [reportsOpen, setReportsOpen] = useState(() => pathname.startsWith("/relatorios") || pathname.startsWith("/graficos") || pathname.startsWith("/crescimento") || pathname.startsWith("/acompanhamento-redes"));
   const [darkMode, setDarkMode] = useState(false);
   const activeLabel = [...navigation, ...reportLinks].find((item) => item.href === pathname)?.label ?? (pathname === "/configuracoes" ? "Configurações" : "Bom Destino");
 

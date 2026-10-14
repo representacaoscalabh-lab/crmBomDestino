@@ -7,6 +7,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "CRM Bom Destino",
+  icons: { icon: "/fav.icon.png" },
   description: "Gestão comercial Bom Destino Laticínios de Búfala",
 };
 

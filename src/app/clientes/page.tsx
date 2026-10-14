@@ -24,9 +24,11 @@ export default function CustomersPage() {
   const [searchDraft, setSearchDraft] = useState("");
   const [statusDraft, setStatusDraft] = useState("Ativo");
   const [segmentDraft, setSegmentDraft] = useState("Todos");
+  const [cityDraft, setCityDraft] = useState("Todas");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("Ativo");
   const [segment, setSegment] = useState("Todos");
+  const [city, setCity] = useState("Todas");
   const [groupDraft, setGroupDraft] = useState("Todos");
   const [groupFilter, setGroupFilter] = useState("Todos");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -44,17 +46,21 @@ export default function CustomersPage() {
   const [savingGroup, setSavingGroup] = useState(false);
   const [confirmingGroupDelete, setConfirmingGroupDelete] = useState(false);
   const [error, setError] = useState("");
+  const cities = useMemo(() => [...new Set(customers.map((customer) => customer.city.trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right, "pt-BR")), [customers]);
   const filtered = useMemo(() => customers.filter((customer) => {
-    const matches = `${customer.name} ${customer.fantasyName ?? ""} ${customer.code} ${customer.city} ${customer.store} ${customer.segment ?? ""}`.toLowerCase().includes(search.toLowerCase());
+    const groupName = customerGroups.find((group) => group.id === customer.groupId)?.name ?? "";
+    const matches = `${customer.name} ${customer.fantasyName ?? ""} ${customer.code} ${customer.document ?? ""} ${customer.city} ${customer.store} ${customer.segment ?? ""} ${groupName}`.toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR"));
     return matches && (status === "Todos" || customer.status === status) && (segment === "Todos" || customer.segment === segment)
+      && (city === "Todas" || customer.city === city)
       && (groupFilter === "Todos" || customer.groupId === groupFilter);
-  }), [customers, search, status, segment, groupFilter]);
+  }), [customers, customerGroups, search, status, segment, city, groupFilter]);
   const selectedCustomers = filtered.filter((customer) => selectedIds.includes(customer.id));
 
   function applyFilters() {
     setSearch(searchDraft.trim());
     setStatus(statusDraft);
     setSegment(segmentDraft);
+    setCity(cityDraft);
     setSelectedIds([]);
   }
 
@@ -62,9 +68,11 @@ export default function CustomersPage() {
     setSearchDraft("");
     setStatusDraft("Todos");
     setSegmentDraft("Todos");
+    setCityDraft("Todas");
     setSearch("");
     setStatus("Todos");
     setSegment("Todos");
+    setCity("Todas");
     setGroupDraft("Todos");
     setGroupFilter("Todos");
     setSelectedIds([]);
@@ -280,6 +288,7 @@ export default function CustomersPage() {
           <div className="customer-filter-row">
             <div className="search-field customer-search-control"><Search size={16} /><input aria-label="Buscar cliente" placeholder="Buscar cliente..." value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") applyFilters(); }} /></div>
             <select aria-label="Filtrar segmento" value={segmentDraft} onChange={(event) => setSegmentDraft(event.target.value)}><option value="Todos">Todos os Segmentos</option>{segments.map((item) => <option key={item}>{item}</option>)}</select>
+            <select aria-label="Filtrar cidade" value={cityDraft} onChange={(event) => setCityDraft(event.target.value)}><option value="Todas">Todas as cidades</option>{cities.map((item) => <option key={item} value={item}>{item}</option>)}</select>
             <select aria-label="Filtrar rede" value={groupDraft} onChange={(event) => setGroupDraft(event.target.value)}><option value="Todos">Todas as redes</option>{customerGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select>
             <select aria-label="Filtrar status" value={statusDraft} onChange={(event) => setStatusDraft(event.target.value)}><option value="Todos">Todos os Status</option><option>Ativo</option><option>Inativo</option><option>Prospect</option></select>
             <button className="button button-primary" onClick={() => { applyFilters(); setGroupFilter(groupDraft); }}>Aplicar</button>
@@ -300,8 +309,8 @@ export default function CustomersPage() {
       <section className="panel customer-directory-table">
         {filtered.length ? <div className="table-wrap customer-table-wrap"><table><thead><tr><th className="customer-select-cell"><input aria-label="Selecionar todos os clientes" type="checkbox" checked={filtered.length > 0 && filtered.every((customer) => selectedIds.includes(customer.id))} onChange={(event) => setSelectedIds(event.target.checked ? filtered.map((customer) => customer.id) : [])} /></th><th>Código</th><th>Cliente / Rede</th><th>Segmento</th><th>Cidade</th><th>Status</th><th>Ações</th></tr></thead><tbody>{filtered.map((customer) => {
           const group = customerGroups.find((item) => item.id === customer.groupId);
-          return <tr key={customer.id}><td className="customer-select-cell"><input aria-label={`Selecionar ${customer.name}`} type="checkbox" checked={selectedIds.includes(customer.id)} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, customer.id] : current.filter((id) => id !== customer.id))} /></td><td><span className="code-chip">{customer.code}</span></td><td><strong className="customer-name">{customer.name}</strong><small className="customer-detail">{group ? <span className="customer-group-badge"><Network size={11} /> {group.name}</span> : customer.fantasyName || customer.document || "Sem rede"}</small></td><td>{customer.segment || "—"}</td><td>{customer.city || "—"}</td><td><span className={`status-pill ${customer.status === "Ativo" ? "status-green" : "status-neutral"}`}>{customer.status}</span></td><td><div className="product-row-actions"><button className="table-action" aria-label={`Editar ${customer.name}`} title="Editar cliente" onClick={() => { setEditingCustomer(customer); setError(""); setShowForm(true); }}><Pencil size={15} /></button><button className="table-action product-delete-action" aria-label={`Excluir ${customer.name}`} title="Excluir cliente" onClick={() => { setError(""); setPendingDelete(customer); }}><Trash2 size={15} /></button></div></td></tr>;
-        })}</tbody></table></div> : <div className="page-empty"><span className="page-empty-icon"><UsersRound size={23} /></span><strong>{search || segment !== "Todos" || status !== "Todos" || groupFilter !== "Todos" ? "Nenhum cliente encontrado" : "Sua carteira está pronta para começar"}</strong><p>{customers.length ? "Experimente ajustar a busca ou os filtros." : "Cadastre seu primeiro cliente para começar a organizar a carteira."}</p>{!customers.length && <button className="button button-outline" onClick={() => { setEditingCustomer(null); setShowForm(true); }}><Plus size={16} /> Cadastrar cliente</button>}</div>}
+          return <tr key={customer.id}><td className="customer-select-cell"><input aria-label={`Selecionar ${customer.name}`} type="checkbox" checked={selectedIds.includes(customer.id)} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, customer.id] : current.filter((id) => id !== customer.id))} /></td><td><span className="code-chip">{customer.code}</span></td><td><strong className="customer-name">{customer.name}</strong><small className="customer-detail">{group && <span className="customer-group-badge"><Network size={11} /> {group.name}</span>}{customer.document && <span className="customer-document-preview">CNPJ {customer.document}</span>}{!group && !customer.document && (customer.fantasyName || "Sem rede")}</small></td><td>{customer.segment || "—"}</td><td>{customer.city || "—"}</td><td><span className={`status-pill ${customer.status === "Ativo" ? "status-green" : "status-neutral"}`}>{customer.status}</span></td><td><div className="product-row-actions"><button className="table-action" aria-label={`Editar ${customer.name}`} title="Editar cliente" onClick={() => { setEditingCustomer(customer); setError(""); setShowForm(true); }}><Pencil size={15} /></button><button className="table-action product-delete-action" aria-label={`Excluir ${customer.name}`} title="Excluir cliente" onClick={() => { setError(""); setPendingDelete(customer); }}><Trash2 size={15} /></button></div></td></tr>;
+        })}</tbody></table></div> : <div className="page-empty"><span className="page-empty-icon"><UsersRound size={23} /></span><strong>{search || segment !== "Todos" || status !== "Todos" || city !== "Todas" || groupFilter !== "Todos" ? "Nenhum cliente encontrado" : "Sua carteira está pronta para começar"}</strong><p>{customers.length ? "Experimente ajustar a busca ou os filtros." : "Cadastre seu primeiro cliente para começar a organizar a carteira."}</p>{!customers.length && <button className="button button-outline" onClick={() => { setEditingCustomer(null); setShowForm(true); }}><Plus size={16} /> Cadastrar cliente</button>}</div>}
       </section>
       {showGroups && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !savingGroup) setShowGroups(false); }}>
         <section className="customer-group-modal" role="dialog" aria-modal="true" aria-labelledby="customer-group-title">

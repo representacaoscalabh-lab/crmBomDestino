@@ -52,6 +52,10 @@ service cloud.firestore {
       allow read, create, update, delete: if approved();
     }
 
+    match /bonifications/{bonificationId} {
+      allow read, create, update, delete: if approved();
+    }
+
     match /goals/{goalId} {
       allow read, create, update, delete: if approved();
     }

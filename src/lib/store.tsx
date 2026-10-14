@@ -9,16 +9,18 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
 import { addDoc, collection, deleteDoc, deleteField, doc, getDocs, onSnapshot, serverTimestamp, updateDoc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
-import type { Customer, CustomerGroup, Goal, NewCustomer, NewProduct, Order, PaymentTerm, Product } from "@/lib/types";
+import type { Bonification, Customer, CustomerGroup, Goal, NewCustomer, NewProduct, Order, PaymentTerm, Product } from "@/lib/types";
 
 type CrmStore = {
   customers: Customer[];
   customerGroups: CustomerGroup[];
   products: Product[];
   orders: Order[];
+  bonifications: Bonification[];
   goals: Goal[];
   paymentTerms: PaymentTerm[];
   addGoal: (goal: Omit<Goal, "id">) => Promise<void>;
@@ -42,17 +44,30 @@ type CrmStore = {
   addOrders: (orders: Order[]) => Promise<void>;
   updateOrder: (id: string, order: Order) => Promise<void>;
   deleteOrder: (id: string) => Promise<void>;
+  deleteOrders: (ids: string[]) => Promise<void>;
+  addBonification: (bonification: Omit<Bonification, "id">) => Promise<void>;
+  addBonifications: (bonifications: Omit<Bonification, "id">[]) => Promise<void>;
+  updateBonification: (id: string, bonification: Omit<Bonification, "id">) => Promise<void>;
+  deleteBonification: (id: string) => Promise<void>;
 };
 
 const StoreContext = createContext<CrmStore | null>(null);
 
+function getOrderDocumentId(preOrder: string, customerId?: string) {
+  const orderKey = preOrder.trim().toUpperCase();
+  return encodeURIComponent(customerId ? `${customerId}:${orderKey}` : orderKey);
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const { crmUser } = useAuth();
+  const pathname = usePathname();
   const isApproved = crmUser?.status === "approved";
+  const isBonificationsPage = pathname.startsWith("/bonificacoes");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerGroups, setCustomerGroups] = useState<CustomerGroup[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [bonifications, setBonifications] = useState<Bonification[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
   const [dataError, setDataError] = useState("");
@@ -71,19 +86,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       onSnapshot(collection(db, "customers"), (snapshot) => handleSnapshot(setCustomers, snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Customer)), handleError),
       onSnapshot(collection(db, "customer_groups"), (snapshot) => handleSnapshot(setCustomerGroups, snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as CustomerGroup)), handleError),
       onSnapshot(collection(db, "products"), (snapshot) => handleSnapshot(setProducts, snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Product)), handleError),
-      onSnapshot(collection(db, "orders"), (snapshot) => handleSnapshot(setOrders, snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Order)), handleError),
+      onSnapshot(collection(db, "bonifications"), (snapshot) => handleSnapshot(setBonifications, snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Bonification)), handleError),
       onSnapshot(collection(db, "goals"), (snapshot) => handleSnapshot(setGoals, snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Goal)), handleError),
       onSnapshot(collection(db, "payment_terms"), (snapshot) => handleSnapshot(setPaymentTerms, snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as PaymentTerm)), handleError),
     ];
     return () => unsubscribe.forEach((stop) => stop());
   }, [isApproved]);
 
+  useEffect(() => {
+    if (!isApproved || isBonificationsPage) return;
+    const unsubscribe = onSnapshot(
+      collection(db, "orders"),
+      (snapshot) => {
+        setDataError("");
+        setOrders(snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Order));
+      },
+      (error) => {
+        console.error("Falha ao sincronizar os pedidos.", error);
+        setDataError("Não foi possível sincronizar os pedidos. Verifique a conexão e as regras de acesso do Firebase.");
+      },
+    );
+    return unsubscribe;
+  }, [isApproved, isBonificationsPage]);
+
   const refreshData = useCallback(async () => {
-    const [customerSnapshot, groupSnapshot, productSnapshot, orderSnapshot, goalSnapshot, paymentTermSnapshot] = await Promise.all([
+    const [customerSnapshot, groupSnapshot, productSnapshot, orderSnapshot, bonificationSnapshot, goalSnapshot, paymentTermSnapshot] = await Promise.all([
       getDocs(collection(db, "customers")),
       getDocs(collection(db, "customer_groups")),
       getDocs(collection(db, "products")),
       getDocs(collection(db, "orders")),
+      getDocs(collection(db, "bonifications")),
       getDocs(collection(db, "goals")),
       getDocs(collection(db, "payment_terms")),
     ]);
@@ -91,6 +123,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setCustomerGroups(groupSnapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as CustomerGroup));
     setProducts(productSnapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Product));
     setOrders(orderSnapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Order));
+    setBonifications(bonificationSnapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Bonification));
     setGoals(goalSnapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Goal));
     setPaymentTerms(paymentTermSnapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as PaymentTerm));
     setDataError("");
@@ -209,8 +242,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     for (let start = 0; start < newOrders.length; start += 450) {
       const batch = writeBatch(db);
       newOrders.slice(start, start + 450).forEach((order) => {
-        batch.set(doc(db, "orders", order.preOrder.trim().toUpperCase()), {
+        const documentId = getOrderDocumentId(order.preOrder, order.customerId);
+        batch.set(doc(db, "orders", documentId), {
           ...order,
+          id: documentId,
           updatedAt: serverTimestamp(),
         }, { merge: true });
       });
@@ -219,7 +254,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateOrder = useCallback(async (id: string, order: Order) => {
-    const nextId = order.preOrder.trim().toUpperCase();
+    const nextId = getOrderDocumentId(order.preOrder, order.customerId);
     const batch = writeBatch(db);
     batch.set(doc(db, "orders", nextId), { ...order, id: nextId, updatedAt: serverTimestamp() });
     if (id !== nextId) batch.delete(doc(db, "orders", id));
@@ -230,12 +265,47 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await deleteDoc(doc(db, "orders", id));
   }, []);
 
+  const deleteOrders = useCallback(async (ids: string[]) => {
+    for (let start = 0; start < ids.length; start += 450) {
+      const batch = writeBatch(db);
+      ids.slice(start, start + 450).forEach((id) => batch.delete(doc(db, "orders", id)));
+      await batch.commit();
+    }
+  }, []);
+
+  const addBonification = useCallback(async (bonification: Omit<Bonification, "id">) => {
+    await addDoc(collection(db, "bonifications"), { ...bonification, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  }, []);
+
+  const addBonifications = useCallback(async (newBonifications: Omit<Bonification, "id">[]) => {
+    for (let start = 0; start < newBonifications.length; start += 450) {
+      const batch = writeBatch(db);
+      newBonifications.slice(start, start + 450).forEach((bonification) => {
+        batch.set(doc(collection(db, "bonifications")), {
+          ...bonification,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      });
+      await batch.commit();
+    }
+  }, []);
+
+  const updateBonification = useCallback(async (id: string, bonification: Omit<Bonification, "id">) => {
+    await updateDoc(doc(db, "bonifications", id), { ...bonification, updatedAt: serverTimestamp() });
+  }, []);
+
+  const deleteBonification = useCallback(async (id: string) => {
+    await deleteDoc(doc(db, "bonifications", id));
+  }, []);
+
   const value = useMemo(
     () => ({
       customers: isApproved ? customers : [],
       customerGroups: isApproved ? customerGroups : [],
       products: isApproved ? products : [],
       orders: isApproved ? orders : [],
+      bonifications: isApproved ? bonifications : [],
       goals: isApproved ? goals : [],
       paymentTerms: isApproved ? paymentTerms : [],
       addGoal,
@@ -259,8 +329,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addOrders,
       updateOrder,
       deleteOrder,
+      deleteOrders,
+      addBonification,
+      addBonifications,
+      updateBonification,
+      deleteBonification,
     }),
-    [isApproved, customers, customerGroups, products, orders, goals, paymentTerms, dataError, refreshData, addPaymentTerm, updatePaymentTerm, deletePaymentTerm, addGoal, updateGoal, deleteGoal, deleteGoals, addCustomer, addCustomers, updateCustomer, deleteCustomer, saveCustomerGroup, deleteCustomerGroup, addProduct, updateProduct, deleteProduct, addOrders, updateOrder, deleteOrder],
+    [isApproved, customers, customerGroups, products, orders, bonifications, goals, paymentTerms, dataError, refreshData, addPaymentTerm, updatePaymentTerm, deletePaymentTerm, addGoal, updateGoal, deleteGoal, deleteGoals, addCustomer, addCustomers, updateCustomer, deleteCustomer, saveCustomerGroup, deleteCustomerGroup, addProduct, updateProduct, deleteProduct, addOrders, updateOrder, deleteOrder, deleteOrders, addBonification, addBonifications, updateBonification, deleteBonification],
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock3,
   CreditCard,
+  Search,
   Pencil,
   Plus,
   ShieldCheck,
@@ -20,9 +21,13 @@ import { useAuth } from "@/lib/auth";
 import { db } from "@/lib/firebase";
 import { useCrmStore } from "@/lib/store";
 import type { PaymentTerm } from "@/lib/types";
+import "./settings.css";
+import { MartMinasSettings } from "@/components/mart-minas-settings";
+
+import { SellerSettings } from "@/components/seller-settings";
 
 type AccessRequest = { id: string; uid: string; email: string; name: string; status: string };
-type SettingsSection = "access" | "payment-terms";
+type SettingsSection = "access" | "payment-terms" | "mart-minas" | "sellers";
 
 export default function SettingsPage() {
   const { crmUser } = useAuth();
@@ -33,10 +38,12 @@ export default function SettingsPage() {
   const [editingTerm, setEditingTerm] = useState<PaymentTerm | null>(null);
   const [paymentError, setPaymentError] = useState("");
   const [savingTerm, setSavingTerm] = useState(false);
+  const [termSearch, setTermSearch] = useState("");
   const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<AccessRequest | null>(null);
   const [error, setError] = useState("");
   const [working, setWorking] = useState("");
+  const visibleTerms = paymentTerms.filter((term) => `${term.code} ${term.term}`.toLocaleLowerCase("pt-BR").includes(termSearch.toLocaleLowerCase("pt-BR"))).sort((a, b) => a.code.localeCompare(b.code, "pt-BR", { numeric: true }));
 
   useEffect(() => {
     if (crmUser?.role !== "admin") return;
@@ -129,39 +136,35 @@ export default function SettingsPage() {
     <div className="page-content settings-page">
       <section className="settings-hero">
         <div className="settings-hero-copy">
-          <span className="settings-hero-icon"><ShieldCheck size={22} /></span>
-          <div><p className="eyebrow">ADMINISTRAÇÃO DO SISTEMA</p><h1>Configurações</h1><p>Gerencie o acesso da equipe e os prazos usados nos pedidos.</p></div>
+          <div><p className="eyebrow">SEU ESPAÇO DE GESTÃO</p><h1>Configurações</h1><p>Organize os acessos e as condições comerciais da sua equipe.</p></div>
         </div>
         <span className="admin-pill"><BadgeCheck size={16} /> Administrador</span>
       </section>
 
       {error && <div className="import-feedback feedback-warning" role="alert">{error}</div>}
 
-      <section className="settings-overview" aria-label="Resumo das configurações">
-        <article className="settings-summary-card">
-          <span className="settings-summary-icon settings-summary-access"><UsersRound size={19} /></span>
-          <div><small>Solicitações aguardando</small><strong>{requests.length}</strong><span>Acessos pendentes de revisão</span></div>
-        </article>
-        <article className="settings-summary-card">
-          <span className="settings-summary-icon settings-summary-terms"><CreditCard size={19} /></span>
-          <div><small>Prazos cadastrados</small><strong>{paymentTerms.length}</strong><span>Disponíveis ao criar pedidos</span></div>
-        </article>
-      </section>
-
+      <div className="settings-workspace">
+      <aside className="settings-menu">
+      <p className="settings-menu-label">GERENCIAR</p>
       <nav className="settings-tabs" aria-label="Seções de configurações">
         <button type="button" className={section === "access" ? "settings-tab settings-tab-active" : "settings-tab"} onClick={() => setSection("access")} aria-current={section === "access" ? "page" : undefined}>
-          <UsersRound size={17} /> Aprovação de usuários <span>{requests.length}</span>
+          <UsersRound size={18} /><span className="settings-tab-copy"><strong>Acessos da equipe</strong><small>Revise novas solicitações</small></span><span className="settings-tab-count">{requests.length}</span>
         </button>
         <button type="button" className={section === "payment-terms" ? "settings-tab settings-tab-active" : "settings-tab"} onClick={() => setSection("payment-terms")} aria-current={section === "payment-terms" ? "page" : undefined}>
-          <CreditCard size={17} /> Prazos de pagamento
+          <CreditCard size={18} /><span className="settings-tab-copy"><strong>Condições de pagamento</strong><small>Prazos usados nos pedidos</small></span>
         </button>
+      <button type="button" className={section === "mart-minas" ? "settings-tab settings-tab-active" : "settings-tab"} onClick={() => setSection("mart-minas")} aria-current={section === "mart-minas" ? "page" : undefined}><span className="settings-tab-copy"><strong>Relatório Mart Minas</strong><small>Defina a rede do relatório</small></span></button>
+        <button type="button" className={section === "sellers" ? "settings-tab settings-tab-active" : "settings-tab"} onClick={() => setSection("sellers")} aria-current={section === "sellers" ? "page" : undefined}><UsersRound size={18} /><span className="settings-tab-copy"><strong>Vendedores</strong><small>Vendedores das redes</small></span></button>
       </nav>
+      <div className="settings-account"><span className="settings-account-avatar"><UserRound size={18} /></span><div><strong>{crmUser.name || "Administrador"}</strong><small>{crmUser.email}</small></div><BadgeCheck size={16} /></div>
+      </aside>
+      <div className="settings-main">
 
-      {section === "access" ? (
+      {section === "sellers" ? <SellerSettings /> : section === "mart-minas" ? <MartMinasSettings /> : section === "access" ? (
         <section className="panel settings-section-panel">
           <div className="settings-section-heading">
             <span className="settings-section-icon"><UserRound size={19} /></span>
-            <div><p className="eyebrow">CONTROLE DE ACESSO</p><h2>Aprovação de usuários</h2><p>Revise cada solicitação antes de liberar o acesso ao CRM.</p></div>
+            <div><h2>Acessos da equipe</h2><p>Revise os dados e decida quem pode acessar o CRM.</p></div>
             <span className="request-count">{requests.length}</span>
           </div>
           {requests.length ? (
@@ -170,12 +173,12 @@ export default function SettingsPage() {
                 <span className="request-avatar"><UserRound size={19} /></span>
                 <div className="request-copy"><strong>{request.name || "Usuário sem nome"}</strong><small>{request.email}</small></div>
                 <span className="settings-pending-status"><Clock3 size={14} /> Aguardando</span>
-                <button className="button button-primary" type="button" onClick={() => setSelectedRequest(request)}>Revisar solicitação</button>
+                <button className="button button-outline" type="button" onClick={() => setSelectedRequest(request)}>Revisar acesso</button>
               </article>)}
             </div>
           ) : (
             <div className="settings-empty-state">
-              <span><CheckCircle2 size={24} /></span><strong>Tudo em dia</strong><p>Nenhuma solicitação de acesso aguardando aprovação.</p>
+              <span><CheckCircle2 size={28} /></span><strong>Todos os acessos em dia</strong><p>Novas solicitações aparecerão aqui para sua revisão.</p>
             </div>
           )}
           <div className="settings-note"><ShieldCheck size={16} /><span>Somente administradores podem aprovar ou recusar novos acessos.</span></div>
@@ -184,8 +187,9 @@ export default function SettingsPage() {
         <section className="panel settings-section-panel settings-terms-section">
           <div className="settings-section-heading">
             <span className="settings-section-icon settings-terms-icon"><CreditCard size={19} /></span>
-            <div><p className="eyebrow">PEDIDOS</p><h2>Prazos de pagamento</h2><p>Cadastre as condições que poderão ser selecionadas ao registrar um pedido.</p></div>
+            <div><h2>Condições de pagamento</h2><p>Defina os prazos disponíveis para clientes e pedidos.</p></div><span className="request-count">{paymentTerms.length}</span>
           </div>
+          <div className="settings-form-title"><strong>{editingTerm ? "Editar condição" : "Adicionar condição"}</strong><span>{editingTerm ? "Atualize o código e a descrição abaixo." : "Use um código curto e uma descrição fácil de identificar."}</span></div>
           <form className="settings-term-form" onSubmit={(event) => void savePaymentTerm(event)}>
             <label><span>Código</span><input required maxLength={30} value={paymentCode} onChange={(event) => setPaymentCode(event.target.value)} placeholder="Ex.: 28" /></label>
             <label><span>Descrição do prazo</span><input required maxLength={80} value={paymentDescription} onChange={(event) => setPaymentDescription(event.target.value)} placeholder="Ex.: 28 dias" /></label>
@@ -195,20 +199,23 @@ export default function SettingsPage() {
             </div>
           </form>
           {paymentError && <div className="import-feedback feedback-warning" role="alert">{paymentError}</div>}
-          {paymentTerms.length ? (
+          <div className="settings-list-toolbar"><span>{visibleTerms.length} de {paymentTerms.length} condições</span><label className="search-field"><Search size={17} /><input aria-label="Buscar condições de pagamento" placeholder="Buscar código ou descrição" value={termSearch} onChange={(event) => setTermSearch(event.target.value)} /></label></div>
+          {visibleTerms.length ? (
             <div className="settings-term-list">
-              {paymentTerms.slice().sort((a, b) => a.code.localeCompare(b.code, "pt-BR", { numeric: true })).map((term) => <article className="settings-term-card" key={term.id}>
+              {visibleTerms.map((term) => <article className="settings-term-card" key={term.id}>
                 <span className="settings-term-code">{term.code}</span><div><strong>{term.term}</strong><small>Condição de pagamento</small></div>
                 <div className="product-row-actions"><button className="table-action" type="button" aria-label={`Editar prazo ${term.code}`} onClick={() => editPaymentTerm(term)}><Pencil size={15} /></button><button className="table-action product-delete-action" type="button" aria-label={`Excluir prazo ${term.code}`} onClick={() => void removePaymentTerm(term)}><Trash2 size={15} /></button></div>
               </article>)}
             </div>
           ) : (
-            <div className="settings-empty-state settings-terms-empty"><span><CreditCard size={23} /></span><strong>Nenhum prazo cadastrado</strong><p>Adicione uma condição acima para disponibilizá-la nos pedidos.</p></div>
+            <div className="settings-empty-state settings-terms-empty"><span><CreditCard size={23} /></span><strong>{termSearch ? "Nenhuma condição encontrada" : "Nenhuma condição cadastrada"}</strong><p>{termSearch ? "Tente outro código ou descrição." : "Adicione uma condição acima para usá-la nos pedidos."}</p>{termSearch && <button type="button" className="button button-outline" onClick={() => setTermSearch("")}>Limpar busca</button>}</div>
           )}
         </section>
       )}
 
-      <div className="info-banner admin-info"><span className="info-banner-icon"><ShieldCheck size={18} /></span><div><strong>Administrador inicial</strong><p>O primeiro administrador é criado pelo servidor quando a conta Google corresponde ao e-mail configurado em <code>FIREBASE_ADMIN_EMAIL</code>.</p></div></div>
+      <p className="settings-footnote"><ShieldCheck size={14} /> Configurações disponíveis apenas para administradores.</p>
+      </div>
+      </div>
 
       {selectedRequest && <div className="modal-backdrop settings-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !working) setSelectedRequest(null); }}>
         <section className="settings-approval-modal" role="dialog" aria-modal="true" aria-labelledby="settings-approval-title">

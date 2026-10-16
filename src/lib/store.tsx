@@ -10,9 +10,11 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
-import { addDoc, collection, deleteDoc, deleteField, doc, getDocs, onSnapshot, serverTimestamp, updateDoc, writeBatch } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, deleteField, doc, getDocs, getDocsFromServer, onSnapshot, runTransaction, serverTimestamp, updateDoc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
+import { validateCustomerBatch } from "@/lib/customer-import";
+import { ImportValidationError } from "@/lib/import-validation";
 import type { Bonification, Customer, CustomerGroup, Goal, NewCustomer, NewProduct, Order, PaymentTerm, Product } from "@/lib/types";
 
 type CrmStore = {
@@ -36,7 +38,8 @@ type CrmStore = {
   addCustomers: (customers: NewCustomer[]) => Promise<void>;
   updateCustomer: (id: string, customer: NewCustomer) => Promise<void>;
   deleteCustomer: (id: string) => Promise<void>;
-  saveCustomerGroup: (id: string | null, name: string, customerIds: string[]) => Promise<string>;
+  deleteCustomers: (ids: string[]) => Promise<void>;
+  saveCustomerGroup: (id: string | null, name: string, customerIds: string[], externalStoreSellers?: Record<string, string>) => Promise<string>;
   deleteCustomerGroup: (id: string) => Promise<void>;
   addProduct: (product: NewProduct) => Promise<void>;
   updateProduct: (id: string, product: NewProduct) => Promise<void>;
@@ -130,24 +133,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addCustomer = useCallback(async (customer: NewCustomer) => {
+    const snapshot = await getDocsFromServer(collection(db, "customers"));
+    validateCustomerBatch([customer], snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Customer));
     await addDoc(collection(db, "customers"), { ...customer, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
   }, []);
 
   const addCustomers = useCallback(async (newCustomers: NewCustomer[]) => {
-    for (let start = 0; start < newCustomers.length; start += 450) {
-      const batch = writeBatch(db);
-      newCustomers.slice(start, start + 450).forEach((customer) => {
-        batch.set(doc(collection(db, "customers")), {
-          ...customer,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+    const snapshot = await getDocsFromServer(collection(db, "customers"));
+    validateCustomerBatch(newCustomers, snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Customer), undefined, { cnpjOnly: true });
+    let saved = 0;
+    try {
+      for (let start = 0; start < newCustomers.length; start += 450) {
+        const batch = writeBatch(db);
+        newCustomers.slice(start, start + 450).forEach((customer) => {
+          batch.set(doc(collection(db, "customers")), {
+            ...customer,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
         });
-      });
-      await batch.commit();
+        await batch.commit();
+        saved += Math.min(450, newCustomers.length - start);
+      }
+    } catch {
+      throw new ImportValidationError(`Importação interrompida: ${saved} cliente(s) salvo(s) e ${newCustomers.length - saved} não confirmado(s). Confira a lista atualizada antes de tentar novamente.`, ["Clientes já salvos serão identificados pelo CNPJ na próxima importação."]);
     }
   }, []);
 
   const updateCustomer = useCallback(async (id: string, customer: NewCustomer) => {
+    const snapshot = await getDocsFromServer(collection(db, "customers"));
+    validateCustomerBatch([customer], snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Customer), id);
     await updateDoc(doc(db, "customers", id), { ...customer, updatedAt: serverTimestamp() });
   }, []);
 
@@ -155,9 +170,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await deleteDoc(doc(db, "customers", id));
   }, []);
 
-  const saveCustomerGroup = useCallback(async (id: string | null, name: string, customerIds: string[]) => {
+  const deleteCustomers = useCallback(async (ids: string[]) => {
+    const uniqueIds = [...new Set(ids)];
+    let deleted = 0;
+    try {
+      for (let start = 0; start < uniqueIds.length; start += 450) {
+        const batch = writeBatch(db);
+        uniqueIds.slice(start, start + 450).forEach((id) => batch.delete(doc(db, "customers", id)));
+        await batch.commit();
+        deleted += Math.min(450, uniqueIds.length - start);
+      }
+    } catch {
+      throw new Error(`Exclusão interrompida: ${deleted} cliente(s) excluído(s). Confira a lista atualizada e tente novamente para os restantes.`);
+    }
+  }, []);
+
+  const saveCustomerGroup = useCallback(async (id: string | null, name: string, customerIds: string[], externalStoreSellers: Record<string, string> = {}) => {
     const groupRef = id ? doc(db, "customer_groups", id) : doc(collection(db, "customer_groups"));
     const selectedIds = new Set(customerIds);
+    const sellers = Object.fromEntries(Object.entries(externalStoreSellers)
+      .filter(([customerId, seller]) => selectedIds.has(customerId) && seller.trim())
+      .map(([customerId, seller]) => [customerId, seller.trim()]));
     const changes = customers
       .filter((customer) => customer.groupId === groupRef.id && !selectedIds.has(customer.id))
       .map((customer) => ({ id: customer.id, groupId: null as string | null }))
@@ -168,7 +201,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     if (batches.length === 0) batches.push(writeBatch(db));
     batches.forEach((batch, index) => {
-      if (index === 0) batch.set(groupRef, { name: name.trim(), updatedAt: serverTimestamp() }, { merge: true });
+      if (index === 0) batch.set(groupRef, { name: name.trim(), externalStoreSellers: sellers, updatedAt: serverTimestamp() }, { mergeFields: ["name", "externalStoreSellers", "updatedAt"] });
       changes.slice(index * 449, (index + 1) * 449).forEach((change) => {
         batch.update(doc(db, "customers", change.id), {
           groupId: change.groupId ?? deleteField(),
@@ -239,17 +272,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addOrders = useCallback(async (newOrders: Order[]) => {
-    for (let start = 0; start < newOrders.length; start += 450) {
-      const batch = writeBatch(db);
-      newOrders.slice(start, start + 450).forEach((order) => {
-        const documentId = getOrderDocumentId(order.preOrder, order.customerId);
-        batch.set(doc(db, "orders", documentId), {
-          ...order,
-          id: documentId,
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
-      });
-      await batch.commit();
+    const ids = new Set<string>();
+    for (const order of newOrders) {
+      const id = getOrderDocumentId(order.preOrder, order.customerId);
+      if (!order.preOrder.trim() || !order.customerId || !order.items.length) throw new ImportValidationError("Pedido sem número, cliente ou produtos. Confira a prévia antes de salvar.");
+      if (ids.has(id)) throw new ImportValidationError(`Pedido ${order.preOrder} repetido para o mesmo cliente no lote. Nenhum pedido deste lote foi salvo.`);
+      ids.add(id);
+      const numbers = [order.totalValue, order.totalWeight, ...order.items.flatMap((item) => Object.values(item).filter((value): value is number => typeof value === "number"))];
+      if (numbers.some((value) => !Number.isFinite(value))) throw new ImportValidationError(`Pedido ${order.preOrder}: valores ou quantidades inválidos. Confira o cadastro dos produtos e o PDF.`);
+    }
+    let saved = 0;
+    try {
+      for (let start = 0; start < newOrders.length; start += 50) {
+        const chunk = newOrders.slice(start, start + 50);
+        await runTransaction(db, async (transaction) => {
+          const refs = chunk.map((order) => doc(db, "orders", getOrderDocumentId(order.preOrder, order.customerId)));
+          const snapshots = await Promise.all(refs.map((ref) => transaction.get(ref)));
+          const duplicateIndex = snapshots.findIndex((snapshot) => snapshot.exists());
+          if (duplicateIndex !== -1) throw new ImportValidationError(`Pedido ${chunk[duplicateIndex].preOrder} já existe para este cliente. Leia o PDF novamente para atualizar a prévia; o pedido existente não foi alterado.`);
+          chunk.forEach((order, index) => transaction.set(refs[index], { ...order, id: refs[index].id, updatedAt: serverTimestamp() }));
+        });
+        saved += chunk.length;
+      }
+    } catch (cause) {
+      const reason = cause instanceof ImportValidationError ? cause.message : "Falha de conexão ou permissão ao gravar os pedidos.";
+      throw new ImportValidationError(`${reason} ${saved} pedido(s) salvo(s) nesta tentativa. Confira os registros e leia o PDF novamente antes de tentar importar os restantes.`);
     }
   }, []);
 
@@ -321,6 +368,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addCustomers,
       updateCustomer,
       deleteCustomer,
+      deleteCustomers,
       saveCustomerGroup,
       deleteCustomerGroup,
       addProduct,
@@ -335,7 +383,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateBonification,
       deleteBonification,
     }),
-    [isApproved, customers, customerGroups, products, orders, bonifications, goals, paymentTerms, dataError, refreshData, addPaymentTerm, updatePaymentTerm, deletePaymentTerm, addGoal, updateGoal, deleteGoal, deleteGoals, addCustomer, addCustomers, updateCustomer, deleteCustomer, saveCustomerGroup, deleteCustomerGroup, addProduct, updateProduct, deleteProduct, addOrders, updateOrder, deleteOrder, deleteOrders, addBonification, addBonifications, updateBonification, deleteBonification],
+    [isApproved, customers, customerGroups, products, orders, bonifications, goals, paymentTerms, dataError, refreshData, addPaymentTerm, updatePaymentTerm, deletePaymentTerm, addGoal, updateGoal, deleteGoal, deleteGoals, addCustomer, addCustomers, updateCustomer, deleteCustomer, deleteCustomers, saveCustomerGroup, deleteCustomerGroup, addProduct, updateProduct, deleteProduct, addOrders, updateOrder, deleteOrder, deleteOrders, addBonification, addBonifications, updateBonification, deleteBonification],
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

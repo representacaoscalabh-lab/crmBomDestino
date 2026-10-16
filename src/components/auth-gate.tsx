@@ -1,15 +1,24 @@
 "use client";
 
 import Image from "next/image";
-import { LogOut, ShieldCheck } from "lucide-react";
-import type { ReactNode } from "react";
+import { ArrowRight, ChartNoAxesCombined, UsersRound, ShoppingBag, LogOut, ShieldCheck } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
 
 export function AuthGate({ children }: { children: ReactNode }) {
   const { firebaseUser, crmUser, loading, error, signIn, signOutUser } = useAuth();
 
-  if (loading) return <div className="auth-screen"><div className="auth-card"><Image src="/logo-bom-destino.jpg" alt="Bom Destino" width={125} height={125} priority /><span className="loading-spinner" /><p>Verificando seu acesso seguro...</p></div></div>;
-  if (!firebaseUser) return <div className="auth-screen"><div className="auth-card"><Image src="/logo-bom-destino.jpg" alt="Bom Destino Laticínios de Búfala" width={150} height={150} priority /><p className="eyebrow">GESTÃO COMERCIAL</p><h1>Bem-vindo ao CRM</h1><p>Acesse sua conta para acompanhar clientes, produtos e pedidos Bom Destino.</p>{error && <div className="auth-error" role="alert">{error}</div>}<button className="button button-primary auth-login" onClick={() => void signIn().catch(() => undefined)}><GoogleMark /> Entrar com Google</button><small>Acesso restrito a usuários autorizados.</small></div></div>;
+  const [signingIn, setSigningIn] = useState(false);
+
+  if (loading) return <div className="auth-screen"><div className="brand-loading" role="status" aria-live="polite"><div className="brand-loading-orbit"><Image src="/logo-bom-destino.jpg" alt="Bom Destino" width={90} height={90} priority /></div><h1>Preparando seu espaço</h1><p>Verificando seu acesso com segurança.</p><div className="loading-dots" aria-hidden="true"><i /><i /><i /></div></div></div>;
+  if (!firebaseUser) return <div className="login-layout">
+    <section className="login-story" aria-label="Bom Destino CRM">
+      <div className="login-brand"><Image src="/logo-bom-destino.jpg" alt="Bom Destino" width={64} height={64} priority /><span>Bom Destino<small>GESTÃO COMERCIAL</small></span></div>
+      <div className="login-story-copy"><span className="login-kicker">RELACIONAMENTOS QUE GERAM RESULTADOS</span><h2>Um novo olhar.<br />Mais possibilidades<br />para o seu negócio.</h2><p>Clientes, pedidos e resultados conectados em um só lugar. Mais clareza para o seu próximo passo.</p><div className="login-features"><span><UsersRound size={18} /> Clientes próximos</span><span><ShoppingBag size={18} /> Vendas organizadas</span><span><ChartNoAxesCombined size={18} /> Decisões claras</span></div></div>
+      <small className="login-story-footer">Bom Destino · Laticínios de Búfala</small>
+    </section>
+    <section className="login-access"><div className="login-form"><span className="login-access-label"><span /> SEU ESPAÇO DE TRABALHO</span><h1>Que bom ter<br />você por aqui.</h1><p>Entre na sua conta e acompanhe o que move o seu negócio.</p>{error && <div className="auth-error" role="alert">{error}</div>}<button className="button button-primary auth-login" disabled={signingIn} onClick={async () => { setSigningIn(true); try { await signIn(); } catch { /* AuthProvider presents the error. */ } finally { setSigningIn(false); } }}><GoogleMark />{signingIn ? "Conectando sua conta…" : "Continuar com Google"}<ArrowRight size={18} /></button><div className="login-security"><ShieldCheck size={17} /><span>Acesso seguro e exclusivo para<br />usuários autorizados.</span></div></div><small className="login-access-footer">CRM Bom Destino · Gestão que aproxima.</small></section>
+  </div>;
   if (error) return <div className="auth-screen"><div className="auth-card"><Image src="/logo-bom-destino.jpg" alt="Bom Destino" width={125} height={125} priority /><h1>Não foi possível verificar seu acesso</h1><p>{error}</p><button className="button button-outline" onClick={() => void signOutUser()}>Sair e tentar novamente</button></div></div>;
   if (!crmUser || crmUser.status !== "approved") return <div className="auth-screen"><div className="auth-card"><Image src="/logo-bom-destino.jpg" alt="Bom Destino" width={125} height={125} priority /><span className="auth-shield"><ShieldCheck size={25} /></span><p className="eyebrow">ACESSO CONTROLADO</p><h1>{crmUser?.status === "rejected" ? "Acesso não autorizado" : "Solicitação enviada"}</h1><p>{crmUser?.status === "rejected" ? "O acesso a este CRM foi recusado. Entre em contato com o administrador." : "Seu cadastro foi recebido e aguarda aprovação do administrador."}</p><div className="auth-user">{firebaseUser.email}</div><button className="button button-outline" onClick={() => void signOutUser()}><LogOut size={15} /> Sair da conta</button></div></div>;
   return children;

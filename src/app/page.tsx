@@ -14,6 +14,7 @@ import {
   ShoppingCart,
 } from "lucide-react";
 import { useCrmStore } from "@/lib/store";
+import { getExternalCustomerIds } from "@/lib/dashboard-scope";
 
 const number = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -159,7 +160,15 @@ function DashboardGrowthRanking({ items, emptyTitle, emptyDescription }: { items
 }
 
 export default function HomePage() {
-  const { customers, customerGroups, products, orders, bonifications } = useCrmStore();
+  const { customers: allCustomers, customerGroups, products, orders: allOrders, bonifications: allBonifications } = useCrmStore();
+  const { customers, orders, bonifications } = useMemo(() => {
+    const excluded = getExternalCustomerIds(allCustomers, customerGroups);
+    return {
+      customers: allCustomers.filter((customer) => !excluded.has(customer.id)),
+      orders: allOrders.filter((order) => !excluded.has(order.customerId)),
+      bonifications: allBonifications.filter((bonus) => !excluded.has(bonus.customerId)),
+    };
+  }, [allCustomers, customerGroups, allOrders, allBonifications]);
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");

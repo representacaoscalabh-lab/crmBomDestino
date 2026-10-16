@@ -65,6 +65,23 @@ service cloud.firestore {
       allow create, update, delete: if admin();
     }
 
+    match /sellers/{sellerId} {
+      allow read: if approved();
+      allow create: if admin()
+        && request.resource.data.keys().hasOnly(['name', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 100;
+    }
+
+    match /settings/mart_minas {
+      allow read: if approved();
+      allow create, update: if admin()
+        && request.resource.data.keys().hasOnly(['groupId', 'updatedAt'])
+        && request.resource.data.groupId is string;
+      allow delete: if admin();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

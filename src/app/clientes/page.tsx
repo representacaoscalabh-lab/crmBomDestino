@@ -1,15 +1,21 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
-import { Building2, Download, MapPin, Network, Pencil, Plus, Search, Trash2, Upload, UsersRound, X } from "lucide-react";
+import { useTableSort } from "@/components/sort-heading";
+
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Building2, ChevronDown, Download, MapPin, Network, Pencil, Plus, Search, SlidersHorizontal, Trash2, Upload, UsersRound, X } from "lucide-react";
+import { ImportIssues } from "@/components/import-issues";
+import { prepareCustomerImport } from "@/lib/customer-import";
+import { customerValidation, normalizeCnpj, ImportValidationError, importFailureMessage } from "@/lib/import-validation";
 import { SpreadsheetImportModal } from "@/components/spreadsheet-import-modal";
+import { useSellers } from "@/lib/sellers";
 import { useCrmStore } from "@/lib/store";
 import { downloadXlsx, downloadXlsxTemplate, readSpreadsheetRows } from "@/lib/xlsx";
 import type { Customer } from "@/lib/types";
+import "./customers.css";
 
 const segments = ["FOOD", "ATACADO", "DISTRIBUIDOR", "VAREJO", "INDUSTRIA", "REDES"];
 const customerHeadings = ["Código", "Cliente", "CNPJ", "Nome fantasia", "Loja", "Segmento", "Prazo de pagamento", "Cidade", "UF", "Status", "Telefone", "Email", "Endereço", "Bairro", "Representante"];
-const cleanHeader = (value: string) => value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
 
 function customerRow(customer: Customer): (string | number)[] {
   return [
@@ -20,8 +26,20 @@ function customerRow(customer: Customer): (string | number)[] {
 }
 
 export default function CustomersPage() {
-  const { customers, customerGroups, paymentTerms, addCustomer, addCustomers, updateCustomer, deleteCustomer, saveCustomerGroup, deleteCustomerGroup } = useCrmStore();
+  const { sellers, loading: sellersLoading, error: sellersError } = useSellers();
+  const { customers, customerGroups, paymentTerms, addCustomer, addCustomers, updateCustomer, deleteCustomer, deleteCustomers, saveCustomerGroup, deleteCustomerGroup } = useCrmStore();
   const [searchDraft, setSearchDraft] = useState("");
+  const [moreFilters, setMoreFilters] = useState(false);
+  const actionsRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const closeOutside = (event: PointerEvent) => {
+      if (actionsRef.current && !actionsRef.current.contains(event.target as Node)) actionsRef.current.open = false;
+    };
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape" && actionsRef.current) actionsRef.current.open = false; };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => { document.removeEventListener("pointerdown", closeOutside); document.removeEventListener("keydown", closeOnEscape); };
+  }, []);
   const [statusDraft, setStatusDraft] = useState("Ativo");
   const [segmentDraft, setSegmentDraft] = useState("Todos");
   const [cityDraft, setCityDraft] = useState("Todas");
@@ -36,11 +54,18 @@ export default function CustomersPage() {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Customer | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [customerIssues, setCustomerIssues] = useState<string[]>([]);
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  const customerSaveLock = useRef(false);
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bulkDeleteError, setBulkDeleteError] = useState("");
   const [showImport, setShowImport] = useState(false);
   const [showGroups, setShowGroups] = useState(false);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [groupName, setGroupName] = useState("");
   const [groupCustomerIds, setGroupCustomerIds] = useState<string[]>([]);
+  const [groupSellers, setGroupSellers] = useState<Record<string, string>>({});
   const [groupSearch, setGroupSearch] = useState("");
   const [groupError, setGroupError] = useState("");
   const [savingGroup, setSavingGroup] = useState(false);
@@ -54,6 +79,7 @@ export default function CustomersPage() {
       && (city === "Todas" || customer.city === city)
       && (groupFilter === "Todos" || customer.groupId === groupFilter);
   }), [customers, customerGroups, search, status, segment, city, groupFilter]);
+  const { sorted, heading } = useTableSort(filtered);
   const selectedCustomers = filtered.filter((customer) => selectedIds.includes(customer.id));
 
   function applyFilters() {
@@ -61,6 +87,7 @@ export default function CustomersPage() {
     setStatus(statusDraft);
     setSegment(segmentDraft);
     setCity(cityDraft);
+    setGroupFilter(groupDraft);
     setSelectedIds([]);
   }
 
@@ -93,61 +120,18 @@ export default function CustomersPage() {
     ]);
   }
 
-  async function importCustomers(file: File): Promise<string> {
+  async function importCustomers(file: File) {
     const rows = await readSpreadsheetRows(file);
-    if (!rows.length) throw new Error("A planilha está vazia ou não contém linhas de clientes.");
-    const existingCodes = new Set(customers.map((customer) => customer.code.trim().toLowerCase()));
-    let skipped = 0;
-    const imports: Omit<Customer, "id">[] = [];
-    rows.forEach((row, index) => {
-      const valueAt = (...names: string[]) => {
-        const key = Object.keys(row).find((header) => names.includes(cleanHeader(header)));
-        return key ? String(row[key] ?? "").trim() : "";
-      };
-      const code = valueAt("codigo", "codigocliente", "codcliente");
-      const name = valueAt("cliente", "nome", "razaosocial", "nomecliente");
-      const document = valueAt("cnpj", "cnpjcpf", "documento");
-      if (!code || !name || !document) {
-        skipped += 1;
-        console.warn(`Cliente ignorado na linha ${index + 2}: código, cliente e CNPJ são obrigatórios.`);
-        return;
-      }
-      const normalizedCode = code.toLowerCase();
-      if (existingCodes.has(normalizedCode)) {
-        skipped += 1;
-        return;
-      }
-      existingCodes.add(normalizedCode);
-      const paymentValue = valueAt("prazodepagamento", "prazopagamento", "condicaodepagamento", "prazo");
-      const paymentTerm = paymentTerms.find((item) => item.code.toLowerCase() === paymentValue.toLowerCase() || item.term.toLowerCase() === paymentValue.toLowerCase())?.code ?? paymentValue;
-      const rawStatus = valueAt("status").toLowerCase();
-      const clientStatus: Customer["status"] = rawStatus === "inativo" ? "Inativo" : rawStatus === "prospect" ? "Prospect" : "Ativo";
-      imports.push({
-        code,
-        name,
-        document,
-        fantasyName: valueAt("nomefantasia"),
-        store: valueAt("loja", "filial"),
-        segment: valueAt("segmento"),
-        paymentTerm,
-        city: valueAt("cidade"),
-        state: valueAt("uf", "estado").toUpperCase(),
-        status: clientStatus,
-        phone: valueAt("telefone", "fone"),
-        email: valueAt("email", "e-mail"),
-        address: valueAt("endereco", "logradouro"),
-        neighborhood: valueAt("bairro"),
-        representative: valueAt("representante"),
-        lastPurchase: valueAt("ultimacompra"),
-      });
-    });
-    if (!imports.length) throw new Error("Nenhum cliente válido para importar. Confira Código, Cliente e CNPJ; códigos existentes serão ignorados.");
+    const { imports, warnings } = prepareCustomerImport(rows, customers, paymentTerms);
     await addCustomers(imports);
-    return `${imports.length} cliente(s) importado(s). ${skipped ? `${skipped} linha(s) ignorada(s) por dados obrigatórios ausentes ou código repetido.` : ""}`;
+    return { message: `${imports.length} cliente(s) importado(s). ${warnings.length} linha(s) ignorada(s).`, warnings };
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (customerSaveLock.current) return;
+    setError("");
+    setCustomerIssues([]);
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const customer: Omit<Customer, "id"> = {
@@ -169,15 +153,18 @@ export default function CustomersPage() {
       email: String(form.get("email")).trim(),
       ...(editingCustomer?.groupId ? { groupId: editingCustomer.groupId } : {}),
     };
-    if (!customer.name || !customer.code || !customer.document) {
-      setError("Preencha os campos obrigatórios: nome, código e CNPJ.");
+    const issues = customerValidation(customer);
+    const duplicate = customers.find((existing) => existing.id !== editingCustomer?.id && normalizeCnpj(existing.document ?? "") === normalizeCnpj(customer.document ?? ""));
+    if (duplicate && customer.document) issues.push(`CNPJ ${customer.document} já cadastrado para ${duplicate.name} (código ${duplicate.code}). Código e nome podem se repetir; use um CNPJ diferente.`);
+    if (issues.length) {
+      setError("Revise os dados do cliente antes de salvar.");
+      setCustomerIssues(issues);
+      const field = !customer.name ? "name" : !customer.code ? "code" : "document";
+      formElement.querySelector<HTMLInputElement>(`[name="${field}"]`)?.focus();
       return;
     }
-
-    if (customers.some((existing) => existing.id !== editingCustomer?.id && existing.code.toLowerCase() === customer.code.toLowerCase() && existing.store.toLowerCase() === customer.store.toLowerCase())) {
-      setError("Já existe um cliente com este código nesta loja.");
-      return;
-    }
+    customerSaveLock.current = true;
+    setSavingCustomer(true);
     try {
       if (editingCustomer) await updateCustomer(editingCustomer.id, customer);
       else await addCustomer(customer);
@@ -186,12 +173,31 @@ export default function CustomersPage() {
       setShowForm(false);
       setEditingCustomer(null);
     } catch (cause) {
-      console.error(editingCustomer ? "Falha ao atualizar cliente." : "Falha ao salvar cliente.", cause);
-      setError("Não foi possível salvar o cliente. Verifique a conexão e tente novamente.");
+      setError(importFailureMessage(cause, "Não foi possível salvar o cliente. Verifique a conexão e tente novamente."));
+      if (cause instanceof ImportValidationError) setCustomerIssues(cause.warnings);
+    } finally {
+      customerSaveLock.current = false;
+      setSavingCustomer(false);
+    }
+  }
+
+  async function confirmBulkDelete() {
+    if (bulkDeleting || !bulkDeleteIds.length) return;
+    setBulkDeleting(true);
+    setBulkDeleteError("");
+    try {
+      await deleteCustomers(bulkDeleteIds);
+      setSelectedIds((ids) => ids.filter((id) => !bulkDeleteIds.includes(id)));
+      setBulkDeleteIds([]);
+    } catch (cause) {
+      setBulkDeleteError(cause instanceof Error ? cause.message : "Não foi possível excluir os clientes. Tente novamente.");
+    } finally {
+      setBulkDeleting(false);
     }
   }
 
   function startNewGroup() {
+    setGroupSellers({});
     setEditingGroupId(null);
     setGroupName("");
     setGroupCustomerIds(selectedIds);
@@ -205,6 +211,7 @@ export default function CustomersPage() {
     if (!group) return;
     setEditingGroupId(group.id);
     setGroupName(group.name);
+    setGroupSellers({ ...group.externalStoreSellers });
     setGroupCustomerIds(customers.filter((customer) => customer.groupId === group.id).map((customer) => customer.id));
     setGroupSearch("");
     setGroupError("");
@@ -227,7 +234,12 @@ export default function CustomersPage() {
     }
     setSavingGroup(true);
     try {
-      await saveCustomerGroup(editingGroupId, groupName, groupCustomerIds);
+      if (groupCustomerIds.some((id) => id in groupSellers && !groupSellers[id].trim())) {
+        setGroupError("Informe o vendedor de cada loja marcada como Outro vendedor.");
+        return;
+      }
+      await saveCustomerGroup(editingGroupId, groupName, groupCustomerIds, groupSellers);
+      setGroupSellers({});
       setGroupError("");
       setEditingGroupId(null);
       setGroupName("");
@@ -279,35 +291,47 @@ export default function CustomersPage() {
 
   return (
     <div className="page-content module-content customer-directory">
-      <section className="panel module-panel">
-        <div className="module-heading">
-          <span className="module-title-icon"><UsersRound size={21} /></span>
-          <div className="module-title-copy"><p className="eyebrow">CARTEIRA COMERCIAL</p><h1>Clientes</h1></div>
-        </div>
-        <div className="customer-toolbar">
-          <div className="customer-filter-row">
-            <div className="search-field customer-search-control"><Search size={16} /><input aria-label="Buscar cliente" placeholder="Buscar cliente..." value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") applyFilters(); }} /></div>
-            <select aria-label="Filtrar segmento" value={segmentDraft} onChange={(event) => setSegmentDraft(event.target.value)}><option value="Todos">Todos os Segmentos</option>{segments.map((item) => <option key={item}>{item}</option>)}</select>
-            <select aria-label="Filtrar cidade" value={cityDraft} onChange={(event) => setCityDraft(event.target.value)}><option value="Todas">Todas as cidades</option>{cities.map((item) => <option key={item} value={item}>{item}</option>)}</select>
-            <select aria-label="Filtrar rede" value={groupDraft} onChange={(event) => setGroupDraft(event.target.value)}><option value="Todos">Todas as redes</option>{customerGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select>
-            <select aria-label="Filtrar status" value={statusDraft} onChange={(event) => setStatusDraft(event.target.value)}><option value="Todos">Todos os Status</option><option>Ativo</option><option>Inativo</option><option>Prospect</option></select>
-            <button className="button button-primary" onClick={() => { applyFilters(); setGroupFilter(groupDraft); }}>Aplicar</button>
-            <button className="button button-outline" onClick={clearFilters}><X size={15} /> Limpar</button>
-          </div>
-          <div className="customer-actions-row">
-            <button className="button button-primary" onClick={() => { setEditingCustomer(null); setError(""); setShowForm(true); }}><Plus size={16} /> Novo Cliente</button>
-            <button className="button button-outline" onClick={() => { void exportCustomers(selectedCustomers.length ? selectedCustomers : filtered).catch((cause: unknown) => { console.error("Falha ao exportar clientes.", cause); setError("Não foi possível exportar clientes."); }); }}><Download size={16} /> Exportar{selectedCustomers.length ? ` (${selectedCustomers.length})` : ""}</button>
-            <button className="button button-outline" onClick={() => { void downloadTemplate().catch((cause: unknown) => { console.error("Falha ao baixar modelo de clientes.", cause); setError("Não foi possível baixar o modelo."); }); }}><Download size={16} /> Template</button>
-            <button className="button button-outline" onClick={() => { setError(""); setShowImport(true); }}><Upload size={16} /> Importar</button>
-            <button className="button button-outline" onClick={() => { startNewGroup(); setShowGroups(true); }}><Network size={16} /> Redes ({customerGroups.length})</button>
-            <div className="customer-source-card"><span className="customer-source-icon"><Building2 size={17} /></span><span><strong>Dados do Firebase</strong><small>Atualizados em tempo real</small></span></div>
+      <section className="customer-controls">
+        <div className="customer-page-heading">
+          <div><h1>Clientes</h1><p>Gerencie sua carteira de clientes.</p></div>
+          <div className="customer-page-actions">
+            <details className="customer-actions-menu" ref={actionsRef}>
+              <summary>Mais ações <ChevronDown size={15} /></summary>
+              <div className="customer-actions-dropdown" onClick={() => { if (actionsRef.current) actionsRef.current.open = false; }}>
+                <button type="button" onClick={() => { void exportCustomers(selectedCustomers.length ? selectedCustomers : filtered).catch(() => setError("Não foi possível exportar clientes. Tente novamente.")); }}><Download size={16} /><span>Exportar {selectedCustomers.length ? `selecionados (${selectedCustomers.length})` : "resultados"}</span></button>
+                <button type="button" onClick={() => { setError(""); setShowImport(true); }}><Upload size={16} /><span>Importar clientes</span></button>
+                <button type="button" onClick={() => { void downloadTemplate().catch(() => setError("Não foi possível baixar o modelo. Tente novamente.")); }}><Download size={16} /><span>Baixar modelo de planilha</span></button>
+                <button type="button" onClick={() => { startNewGroup(); setShowGroups(true); }}><Network size={16} /><span>Gerenciar redes</span><small>{customerGroups.length}</small></button>
+              </div>
+            </details>
+            <button type="button" className="button button-primary" onClick={() => { setEditingCustomer(null); setError(""); setShowForm(true); }}><Plus size={16} /> Novo cliente</button>
           </div>
         </div>
+        <form className="customer-toolbar" onSubmit={(event) => { event.preventDefault(); applyFilters(); }}>
+          <div className="customer-quick-filters">
+            <div className="search-field customer-search-control"><Search size={17} /><input aria-label="Buscar cliente" placeholder="Buscar por nome, código ou CNPJ" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} /></div>
+            <select aria-label="Filtrar status" value={statusDraft} onChange={(event) => setStatusDraft(event.target.value)}><option value="Todos">Todos os status</option><option>Ativo</option><option>Inativo</option><option>Prospect</option></select>
+            <button type="button" className={`button button-outline customer-filter-toggle ${moreFilters ? "customer-filter-toggle-active" : ""}`} aria-expanded={moreFilters} aria-controls="customer-extra-filters" onClick={() => setMoreFilters((open) => !open)}><SlidersHorizontal size={15} /> Filtros{[segmentDraft !== "Todos", cityDraft !== "Todas", groupDraft !== "Todos"].filter(Boolean).length > 0 && <span>{[segmentDraft !== "Todos", cityDraft !== "Todas", groupDraft !== "Todos"].filter(Boolean).length}</span>}</button>
+            <button type="submit" className="button button-primary">Aplicar</button>
+            <button type="button" className="icon-button customer-clear-filters" onClick={clearFilters} aria-label="Limpar filtros" title="Limpar filtros"><X size={17} /></button>
+          </div>
+          {moreFilters && <div className="customer-extra-filters" id="customer-extra-filters">
+            <label><span>Segmento</span><select value={segmentDraft} onChange={(event) => setSegmentDraft(event.target.value)}><option value="Todos">Todos os segmentos</option>{segments.map((item) => <option key={item}>{item}</option>)}</select></label>
+            <label><span>Cidade</span><select value={cityDraft} onChange={(event) => setCityDraft(event.target.value)}><option value="Todas">Todas as cidades</option>{cities.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+            <label><span>Rede</span><select value={groupDraft} onChange={(event) => setGroupDraft(event.target.value)}><option value="Todos">Todas as redes</option>{customerGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
+          </div>}
+        </form>
         {error && !showForm && <div className="form-error customer-page-error" role="alert">{error}</div>}
       </section>
-      <div className="customer-count-bar">Mostrando {filtered.length} de {customers.length} cliente(s) · {customerGroups.length} rede(s)</div>
+      <div className="customer-results-toolbar">
+        <span>{filtered.length} de {customers.length} cliente(s)</span>
+        <div className="customer-selection-actions">
+          {selectedCustomers.length > 0 && <><span className="customer-selection-count">{selectedCustomers.length} selecionado(s)</span><button type="button" className="button button-danger button-small" onClick={() => { setBulkDeleteError(""); setBulkDeleteIds(selectedCustomers.map((customer) => customer.id)); }}><Trash2 size={14} /> Excluir</button></>}
+          {filtered.length > 0 && <button type="button" className="customer-selection-toggle" onClick={() => setSelectedIds(filtered.every((customer) => selectedIds.includes(customer.id)) ? [] : filtered.map((customer) => customer.id))}>{filtered.every((customer) => selectedIds.includes(customer.id)) ? "Limpar seleção" : "Selecionar todos"}</button>}
+        </div>
+      </div>
       <section className="panel customer-directory-table">
-        {filtered.length ? <div className="table-wrap customer-table-wrap"><table><thead><tr><th className="customer-select-cell"><input aria-label="Selecionar todos os clientes" type="checkbox" checked={filtered.length > 0 && filtered.every((customer) => selectedIds.includes(customer.id))} onChange={(event) => setSelectedIds(event.target.checked ? filtered.map((customer) => customer.id) : [])} /></th><th>Código</th><th>Cliente / Rede</th><th>Segmento</th><th>Cidade</th><th>Status</th><th>Ações</th></tr></thead><tbody>{filtered.map((customer) => {
+        {filtered.length ? <div className="table-wrap customer-table-wrap"><table><thead><tr><th className="customer-select-cell"><input aria-label="Selecionar todos os clientes" type="checkbox" checked={filtered.length > 0 && filtered.every((customer) => selectedIds.includes(customer.id))} onChange={(event) => setSelectedIds(event.target.checked ? filtered.map((customer) => customer.id) : [])} /></th>{heading("code", "Código", (r) => r.code)}{heading("name", "Cliente / Rede", (r) => r.name)}{heading("segment", "Segmento", (r) => r.segment)}{heading("city", "Cidade", (r) => r.city)}{heading("status", "Status", (r) => r.status)}<th>Ações</th></tr></thead><tbody>{sorted.map((customer) => {
           const group = customerGroups.find((item) => item.id === customer.groupId);
           return <tr key={customer.id}><td className="customer-select-cell"><input aria-label={`Selecionar ${customer.name}`} type="checkbox" checked={selectedIds.includes(customer.id)} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, customer.id] : current.filter((id) => id !== customer.id))} /></td><td><span className="code-chip">{customer.code}</span></td><td><strong className="customer-name">{customer.name}</strong><small className="customer-detail">{group && <span className="customer-group-badge"><Network size={11} /> {group.name}</span>}{customer.document && <span className="customer-document-preview">CNPJ {customer.document}</span>}{!group && !customer.document && (customer.fantasyName || "Sem rede")}</small></td><td>{customer.segment || "—"}</td><td>{customer.city || "—"}</td><td><span className={`status-pill ${customer.status === "Ativo" ? "status-green" : "status-neutral"}`}>{customer.status}</span></td><td><div className="product-row-actions"><button className="table-action" aria-label={`Editar ${customer.name}`} title="Editar cliente" onClick={() => { setEditingCustomer(customer); setError(""); setShowForm(true); }}><Pencil size={15} /></button><button className="table-action product-delete-action" aria-label={`Excluir ${customer.name}`} title="Excluir cliente" onClick={() => { setError(""); setPendingDelete(customer); }}><Trash2 size={15} /></button></div></td></tr>;
         })}</tbody></table></div> : <div className="page-empty"><span className="page-empty-icon"><UsersRound size={23} /></span><strong>{search || segment !== "Todos" || status !== "Todos" || city !== "Todas" || groupFilter !== "Todos" ? "Nenhum cliente encontrado" : "Sua carteira está pronta para começar"}</strong><p>{customers.length ? "Experimente ajustar a busca ou os filtros." : "Cadastre seu primeiro cliente para começar a organizar a carteira."}</p>{!customers.length && <button className="button button-outline" onClick={() => { setEditingCustomer(null); setShowForm(true); }}><Plus size={16} /> Cadastrar cliente</button>}</div>}
@@ -325,6 +349,27 @@ export default function CustomersPage() {
                 const otherGroup = customerGroups.find((group) => group.id === customer.groupId && group.id !== editingGroupId);
                 return <label key={customer.id} className="customer-group-member"><input type="checkbox" checked={groupCustomerIds.includes(customer.id)} onChange={(event) => setGroupCustomerIds((current) => event.target.checked ? [...current, customer.id] : current.filter((id) => id !== customer.id))} /><span><strong>{customer.name}</strong><small>Cód. {customer.code} · {customer.city || "Cidade não informada"} · Loja {customer.store || "—"}</small></span>{otherGroup && <em>Será movida de {otherGroup.name}</em>}</label>;
               })}{groupCustomers.length === 0 && <p className="customer-group-empty">Nenhum cadastro corresponde à busca.</p>}</div>
+              <section className="customer-group-sellers" aria-label="Vendedores das lojas">
+                <strong>Quem atende cada loja?</strong>
+                {sellersError && <p role="alert">{sellersError}</p>}
+                {!sellersLoading && !sellersError && sellers.length === 0 && <p>Cadastre os vendedores em Configurações → Vendedores.</p>}
+                <p>Lojas de outro vendedor continuam na rede e recebem pedidos normalmente, mas ficam fora de todas as métricas do dashboard. A seleção vale também para pedidos já importados.</p>
+                {groupCustomers.filter((customer) => groupCustomerIds.includes(customer.id)).map((customer) => <div className="customer-group-seller-row" key={customer.id}>
+                  <span><strong>{customer.name}</strong><small>Cód. {customer.code} · Loja {customer.store || "—"} · {customer.city}</small></span>
+                  <select aria-label={`Responsável pela loja ${customer.code} ${customer.store}`} value={customer.id in groupSellers ? "external" : "ours"} onChange={(event) => setGroupSellers((current) => {
+                    const next = { ...current };
+                    if (event.target.value === "external") next[customer.id] = "";
+                    else delete next[customer.id];
+                    return next;
+                  })}><option value="ours">Representação WRRJ</option><option value="external">Outro vendedor</option></select>
+                  {customer.id in groupSellers && <label>Vendedor<select required value={groupSellers[customer.id]} onChange={(event) => setGroupSellers((current) => ({ ...current, [customer.id]: event.target.value }))}>
+                    <option value="">{sellersLoading ? "Carregando vendedores..." : "Selecione o vendedor"}</option>
+                    {groupSellers[customer.id] && !sellers.some((seller) => seller.name === groupSellers[customer.id]) && <option value={groupSellers[customer.id]}>{groupSellers[customer.id]} (cadastro anterior)</option>}
+                    {sellers.map((seller) => <option key={seller.id} value={seller.name}>{seller.name}</option>)}
+                  </select></label>}
+                </div>)}
+                <small>{groupCustomerIds.filter((id) => id in groupSellers).length} loja(s) de outro vendedor · {groupCustomerIds.filter((id) => !(id in groupSellers)).length} na Representação WRRJ</small>
+              </section>
               {groupError && <p className="form-error" role="alert">{groupError}</p>}
               {confirmingGroupDelete && <div className="customer-group-delete-confirm" role="alert"><span>Excluir esta rede? As lojas continuarão cadastradas e seus pedidos serão preservados.</span><button type="button" onClick={() => setConfirmingGroupDelete(false)}>Cancelar</button><button type="button" disabled={savingGroup} onClick={() => void removeGroup()}>{savingGroup ? "Excluindo..." : "Confirmar exclusão"}</button></div>}
               <div className="customer-group-footer">{editingGroupId && !confirmingGroupDelete && <button type="button" className="button button-outline customer-group-delete" disabled={savingGroup} onClick={() => setConfirmingGroupDelete(true)}><Trash2 size={15} /> Excluir rede</button>}<span className="customer-group-report-hint">Os relatórios serão consolidados usando os pedidos de cada loja.</span><button type="submit" className="button button-primary" disabled={savingGroup}>{savingGroup ? "Salvando..." : editingGroupId ? "Salvar rede" : "Criar rede"}</button></div>
@@ -332,9 +377,9 @@ export default function CustomersPage() {
           </div>
         </section>
       </div>}
-      {showForm && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false); }}>
+      {showForm && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (!savingCustomer && event.target === event.currentTarget) setShowForm(false); }}>
         <section className="customer-modal" role="dialog" aria-modal="true" aria-labelledby="customer-modal-title">
-          <div className="modal-heading"><div><p className="eyebrow">CADASTRO DE CLIENTES</p><h2 id="customer-modal-title">{editingCustomer ? "Editar cliente" : "Novo cliente"}</h2><p>Nome, código e CNPJ são obrigatórios; os demais dados são opcionais.</p></div><button className="icon-button" aria-label="Fechar" onClick={() => setShowForm(false)}><X size={20} /></button></div>
+          <div className="modal-heading"><div><p className="eyebrow">CADASTRO DE CLIENTES</p><h2 id="customer-modal-title">{editingCustomer ? "Editar cliente" : "Novo cliente"}</h2><p>Nome, código e CNPJ são obrigatórios. Somente o CNPJ precisa ser único.</p></div><button className="icon-button" aria-label="Fechar" disabled={savingCustomer} onClick={() => setShowForm(false)}><X size={20} /></button></div>
           <form className="modal-form customer-form" onSubmit={submit}>
             <div className="modal-section customer-required-section"><div className="customer-section-heading"><span className="customer-section-icon"><Building2 size={17} /></span><div><h3>Identificação do cliente</h3><p>Campos com <strong>*</strong> são obrigatórios</p></div><span className="required-badge">3 campos</span></div><div className="modal-fields customer-required-fields">
               <label className="field-wide"><span>Nome do cliente <i className="required-mark">*</i></span><input name="name" required defaultValue={editingCustomer?.name ?? ""} placeholder="Razão social ou nome do cliente" autoFocus /></label>
@@ -353,9 +398,16 @@ export default function CustomersPage() {
               <label>Cidade<input name="city" defaultValue={editingCustomer?.city ?? ""} /></label><label>UF<input name="state" maxLength={2} defaultValue={editingCustomer?.state ?? ""} /></label>
               <label>Telefone<input name="phone" type="tel" defaultValue={editingCustomer?.phone ?? ""} /></label><label>Email<input name="email" type="email" defaultValue={editingCustomer?.email ?? ""} /></label>
             </div></div>
-            {error && <p className="form-error" role="alert">{error}</p>}
-            <div className="modal-footer"><button type="button" className="button button-outline" onClick={() => { setShowForm(false); setEditingCustomer(null); setError(""); }}>Cancelar</button><button className="button button-primary" type="submit"><Plus size={16} /> {editingCustomer ? "Salvar alterações" : "Cadastrar cliente"}</button></div>
+            {error && <ImportIssues error={error} warnings={customerIssues} title="Revise o cadastro do cliente" guidance="Ajuste os campos indicados e salve novamente. Seus dados preenchidos foram mantidos." />}
+            <div className="modal-footer"><button type="button" className="button button-outline" disabled={savingCustomer} onClick={() => { setShowForm(false); setEditingCustomer(null); setError(""); }}>Cancelar</button><button className="button button-primary" type="submit" disabled={savingCustomer}><Plus size={16} /> {savingCustomer ? "Salvando..." : editingCustomer ? "Salvar alterações" : "Cadastrar cliente"}</button></div>
           </form>
+        </section>
+      </div>}
+      {bulkDeleteIds.length > 0 && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (!bulkDeleting && event.target === event.currentTarget) setBulkDeleteIds([]); }}>
+        <section className="customer-modal product-delete-modal" role="alertdialog" aria-modal="true" aria-labelledby="bulk-delete-customers-title">
+          <div className="modal-heading"><div><p className="eyebrow">EXCLUSÃO DE CLIENTES</p><h2 id="bulk-delete-customers-title">Excluir {bulkDeleteIds.length} cliente(s)?</h2><p>Os cadastros selecionados serão removidos permanentemente.</p></div><button type="button" className="icon-button" aria-label="Fechar" disabled={bulkDeleting} onClick={() => setBulkDeleteIds([])}><X size={20} /></button></div>
+          <div className="product-delete-body"><strong>{bulkDeleteIds.length} cliente(s) selecionado(s)</strong><p>Pedidos e bonificações já registrados mantêm o histórico. Revise a seleção antes de confirmar.</p>{bulkDeleteError && <ImportIssues error={bulkDeleteError} title="Não foi possível concluir a exclusão" />}</div>
+          <div className="modal-footer"><button type="button" className="button button-outline" disabled={bulkDeleting} onClick={() => setBulkDeleteIds([])}>Cancelar</button><button type="button" className="button button-danger" disabled={bulkDeleting} onClick={() => void confirmBulkDelete()}><Trash2 size={15} />{bulkDeleting ? "Excluindo..." : `Excluir ${bulkDeleteIds.length} cliente(s)`}</button></div>
         </section>
       </div>}
       {pendingDelete && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (!deleting && event.target === event.currentTarget) setPendingDelete(null); }}>
@@ -365,7 +417,7 @@ export default function CustomersPage() {
           <div className="modal-footer product-delete-footer"><button className="button button-outline" disabled={deleting} onClick={() => setPendingDelete(null)}>Cancelar</button><button className="button product-delete-confirm" disabled={deleting} onClick={() => { void confirmDelete(); }}><Trash2 size={15} /> {deleting ? "Excluindo..." : "Excluir permanentemente"}</button></div>
         </section>
       </div>}
-      <SpreadsheetImportModal open={showImport} title="Importar clientes" description="Adicione vários clientes a partir de uma planilha." formatDescription="Arquivos XLSX ou XLS de até 10 MB" formatHint="Prazo de pagamento é opcional. Código, Cliente e CNPJ são obrigatórios. Códigos repetidos serão ignorados." onTemplate={downloadTemplate} onImport={importCustomers} onClose={() => setShowImport(false)} />
+      <SpreadsheetImportModal open={showImport} title="Importar clientes" description="Adicione vários clientes a partir de uma planilha." formatDescription="Arquivos XLSX ou XLS de até 10 MB" formatHint="Somente o CNPJ é obrigatório. Nome, código e demais campos são opcionais. CNPJs repetidos serão ignorados." onTemplate={downloadTemplate} onImport={importCustomers} onClose={() => setShowImport(false)} />
     </div>
   );
 }

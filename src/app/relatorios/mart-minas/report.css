@@ -1,0 +1,97 @@
+.mart-report-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.mart-report-heading h1 { margin: 4px 0 8px; }
+.mart-report-heading p, .mart-report-note { color: var(--mart-muted); }
+.mart-report-filters { display: flex; align-items: end; flex-wrap: wrap; gap: 14px; padding: 20px; }
+.mart-report-filters label { display: grid; gap: 6px; flex: 1 1 150px; font-size: 14px; }
+.mart-report-filters input, .mart-report-filters select { min-height: 40px; width: 100%; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 8px 10px; font: inherit; }
+.mart-date-range { display: flex; align-items: center; gap: 10px; flex: 2 1 320px; min-width: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.mart-report-filters .mart-date-range label { flex: 1 1 0; min-width: 0; gap: 2px; color: var(--mart-muted); font-size: 14px; }
+.mart-report-filters .mart-date-range input { border: 0; padding: 4px 0; min-height: 30px; border-radius: 4px; color: var(--ink); }
+.mart-date-range-separator { color: var(--mart-muted); padding-top: 14px; }
+.mart-date-range:focus-within { outline: 2px solid var(--brand); outline-offset: 2px; }
+.mart-report-note { font-size: 14px; margin: 18px 0; }
+.mart-report-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.mart-report-card { display: grid; gap: 10px; padding: 24px; }
+.mart-report-card h2 { margin: 0; font-size: 15px; }
+.mart-report-card > strong { font-size: clamp(20px, 2vw, 30px); color: var(--brand); }
+.mart-report-card small { color: var(--mart-muted); }
+.mart-report-section { margin-top: 36px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--ink) 16%, var(--surface)); }
+.mart-report-section h2 { padding: 20px; margin: 0; font-size: 20px; }
+.mart-report-table { overflow-x: auto; }
+.mart-report-table table { width: 100%; border-collapse: collapse; }
+.mart-report-table th, .mart-report-table td { padding: 14px 20px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.mart-report-table th { color: var(--ink); font-size: 14px; font-weight: 600; }
+.mart-report-table td { font-size: 14px; }
+.mart-report-table td small { display: block; margin-top: 5px; color: var(--mart-muted); }
+.mart-report-table tfoot { font-weight: 700; }
+@media (max-width: 760px) { .mart-report-cards { grid-template-columns: 1fr; } .mart-report-filters > button { flex: 1 1 150px; } }
+.mart-report { min-width: 0; --mart-muted: color-mix(in srgb, var(--ink) 78%, var(--surface)); color: var(--ink); font-size: 14px; }
+.mart-report-section, .mart-report-cards > *, .mart-report-table { min-width: 0; }
+.mart-kpis { margin-top: 20px; }
+.mart-report-card small { line-height: 1.5; font-size: 13px; }
+.mart-period-banner { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 18px 0 0; font-size: 14px; }
+.mart-period-banner span { color: var(--mart-muted); }
+.mart-data-note { padding: 14px 18px; border: 1px solid #d6b76c; background: #fff9e8; color: #755013; border-radius: 10px; font-size: 14px; line-height: 1.6; }
+.mart-report .mart-positive { color: #188047; font-weight: 600; }
+.mart-report .mart-negative { color: #bc3444; font-weight: 600; }
+.mart-report .mart-neutral { color: var(--mart-muted); }
+.mart-section-heading { border-bottom: 1px solid var(--line); margin-bottom: 20px; background: color-mix(in srgb, var(--brand) 3%, var(--surface)); display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px; }
+.mart-section-heading h2 { padding: 0; }
+.mart-section-heading p, .mart-section-note { color: var(--mart-muted); font-size: 14px; line-height: 1.6; }
+.mart-section-heading p { margin: 8px 0 0; }
+.mart-section-note { margin: 0; padding: 0 20px 18px; }
+.mart-inline-filters { display: flex; align-items: end; flex-wrap: wrap; gap: 16px; padding: 0 20px 20px; }
+.mart-inline-filters label { display: grid; gap: 8px; font-size: 14px; flex: 1 1 200px; }
+.mart-inline-filters > span { font-size: 14px; color: var(--mart-muted); padding-bottom: 10px; }
+.mart-inline-filters input, .mart-inline-filters select { width: 100%; min-height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; color: var(--ink); background: var(--surface); font: inherit; }
+.mart-month-chart { display: flex; gap: 16px; padding: 24px; overflow-x: auto; }
+.mart-month-chart > div { flex: 1 0 75px; display: grid; justify-items: center; gap: 12px; font-size: 14px; }
+.mart-month-chart > div > span { color: var(--mart-muted); white-space: nowrap; }
+.mart-bar-track { height: 140px; width: 100%; max-width: 60px; display: flex; align-items: end; border-bottom: 1px solid var(--line); }
+.mart-bar { width: 100%; border-radius: 5px 5px 0 0; background: #c49b9f; min-height: 0; }
+.mart-month-current .mart-bar { background: var(--brand); }
+.mart-alert-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 0 20px 20px; }
+.mart-alert-grid h3 { font-size: 14px; margin: 0 0 14px; }
+.mart-alert-grid p { color: var(--mart-muted); font-size: 14px; }
+.mart-alert-grid .mart-section-note { padding: 14px 0 0; }
+.mart-alert { display: grid; gap: 8px; width: 100%; text-align: left; padding: 14px; margin-bottom: 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface); font: inherit; font-size: 14px; cursor: pointer; }
+.mart-alert:hover, .mart-alert:focus-visible { border-color: var(--brand); }
+.mart-alert small { color: var(--mart-muted); line-height: 1.5; }
+.mart-detail-stats { display: flex; flex-wrap: wrap; gap: 16px 24px; padding: 0 20px 24px; font-size: 14px; }
+.mart-detail-stats > span { display: grid; gap: 6px; color: var(--mart-muted); }
+.mart-detail-stats strong { color: var(--ink); }
+.mart-subheading { padding: 0 20px; font-size: 15px; margin: 20px 0 14px; }
+.mart-opportunities { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding: 0 20px 20px; }
+.mart-opportunities > div { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; }
+.mart-opportunities span { color: var(--mart-muted); font-size: 14px; }
+.mart-report .mart-product-name { white-space: normal; min-width: 220px; }
+.mart-store-link { border: 0; background: none; color: var(--brand); text-align: left; font: inherit; font-weight: 600; padding: 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.mart-selected-row { background: color-mix(in srgb, var(--brand) 6%, transparent); }
+.mart-store-detail { border: 1px solid var(--brand); scroll-margin-top: 20px; }
+.mart-store-table-container {
+  max-height: min(460px, 55vh);
+  max-width: 100%;
+  overflow: auto;
+  margin: 0 20px 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  overscroll-behavior-x: contain;
+}
+.mart-store-table-container:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+.mart-store-table-container table { border-collapse: separate; border-spacing: 0; }
+.mart-store-table-container th, .mart-store-table-container td { padding: 10px 14px; }
+.mart-store-table-container thead th { position: sticky; top: 0; z-index: 2; background: var(--surface); box-shadow: 0 1px 0 var(--line); }
+.mart-store-table-container th:first-child, .mart-store-table-container td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); min-width: 230px; max-width: 300px; white-space: normal; box-shadow: 1px 0 0 var(--line); }
+.mart-store-table-container thead th:first-child { z-index: 3; }
+.mart-store-table-container .mart-store-link { overflow-wrap: anywhere; }
+.mart-record-details > summary, .mart-methodology > summary { padding: 20px; cursor: pointer; font-size: 15px; font-weight: 600; }
+.mart-report-table summary { cursor: pointer; }
+.mart-methodology { margin-top: 22px; }
+.mart-methodology ul { padding: 0 24px 20px 40px; margin: 0; color: var(--mart-muted); font-size: 14px; line-height: 1.8; }
+.dark-theme .mart-data-note { background: #332b19; color: #e4c47f; }
+.dark-theme .mart-report .mart-positive { color: #6bd399; }
+.dark-theme .mart-report .mart-negative { color: #f58c99; }
+@media (max-width: 1000px) { .mart-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .mart-kpis, .mart-alert-grid { grid-template-columns: 1fr; } .mart-section-heading { align-items: start; flex-wrap: wrap; } .mart-month-chart { gap: 12px; padding: 16px; } }

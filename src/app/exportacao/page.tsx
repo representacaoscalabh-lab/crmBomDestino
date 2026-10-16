@@ -1,5 +1,7 @@
 "use client";
 
+import { ImportIssues } from "@/components/import-issues";
+
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowRight, Download, FileSpreadsheet, FileText, Gift, Package, ShoppingCart, Upload, UsersRound } from "lucide-react";
@@ -7,6 +9,7 @@ import { useCrmStore } from "@/lib/store";
 import { downloadXlsx } from "@/lib/xlsx";
 import { buildNetworkBonificationImport, buildNetworkOrderImport, parseNetworkOrderPdf, type NetworkOrderPdf } from "@/lib/network-order-pdf";
 import type { Bonification, Order } from "@/lib/types";
+import { importFailureMessage } from "@/lib/import-validation";
 
 export default function ExportPage() {
   const { customers, customerGroups, products, orders, bonifications, addOrders, addBonifications } = useCrmStore();
@@ -22,6 +25,7 @@ export default function ExportPage() {
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
   const [importError, setImportError] = useState("");
   const [importSuccess, setImportSuccess] = useState("");
+  const [detected, setDetected] = useState({ orders: 0, bonifications: 0 });
 
   function resetImportPreview() {
     setOrdersPreview([]);
@@ -29,9 +33,11 @@ export default function ExportPage() {
     setImportWarnings([]);
     setImportError("");
     setImportSuccess("");
+    setDetected({ orders: 0, bonifications: 0 });
   }
 
   async function readIntelligentImport() {
+    if (isImporting) return;
     if (!importFile) {
       setImportError("Selecione o PDF de pedidos para iniciar a leitura.");
       return;
@@ -41,17 +47,20 @@ export default function ExportPage() {
     setImportSuccess("");
     setImportProgress(0);
     try {
+      setOrdersPreview([]);
+      setBonificationsPreview([]);
+      setImportWarnings([]);
       const parsed: NetworkOrderPdf[] = await parseNetworkOrderPdf(new Uint8Array(await importFile.arrayBuffer()), setImportProgress);
+      setDetected({ orders: parsed.filter((entry) => entry.documentType === "order").length, bonifications: parsed.filter((entry) => entry.documentType === "bonification").length });
       const orderResult = buildNetworkOrderImport(parsed, customers, products, orders);
       const bonificationResult = buildNetworkBonificationImport(parsed, customers, products, bonifications);
       setOrdersPreview(orderResult.orders);
       setBonificationsPreview(bonificationResult.bonifications);
-      setImportWarnings([...orderResult.warnings, ...bonificationResult.warnings]);
+      setImportWarnings([...new Set([...orderResult.warnings, ...bonificationResult.warnings])]);
       if (!orderResult.orders.length && !bonificationResult.bonifications.length) {
         setImportError("Nenhum pedido ou bonificação novo pôde ser preparado. Confira o CNPJ, os códigos de produto e os avisos abaixo.");
       }
     } catch (cause) {
-      console.error("Falha ao processar a importação inteligente.", cause);
       setImportError(cause instanceof Error ? cause.message : "Não foi possível ler esse PDF.");
     } finally {
       setIsImporting(false);
@@ -59,6 +68,7 @@ export default function ExportPage() {
   }
 
   async function confirmIntelligentImport() {
+    if (isImporting || (!ordersPreview.length && !bonificationsPreview.length)) return;
     const savedOrders = ordersPreview.length > 0;
     const savedBonifications = bonificationsPreview.length > 0;
     setIsImporting(true);
@@ -76,7 +86,7 @@ export default function ExportPage() {
       setImportSuccess(`${savedOrders ? `${ordersPreview.length} pedido(s)` : ""}${savedOrders && savedBonifications ? " e " : ""}${savedBonifications ? `${bonificationsPreview.length} bonificação(ões)` : ""} importado(s) com sucesso.`);
     } catch (cause) {
       console.error("Falha ao salvar registros da importação inteligente.", cause);
-      setImportError("Não foi possível salvar todos os registros. Os registros já salvos foram removidos da prévia; confira e tente novamente.");
+      setImportError(importFailureMessage(cause, "Não foi possível salvar todos os registros. Confira os registros salvos e leia o PDF novamente para atualizar a prévia antes de tentar novamente."));
     } finally {
       setIsImporting(false);
     }
@@ -157,13 +167,14 @@ export default function ExportPage() {
             event.currentTarget.value = "";
           }} /></label>
           {isImporting && <div className="order-image-progress" role="status"><div><span>{ordersPreview.length || bonificationsPreview.length ? "Salvando importação..." : "Lendo e classificando páginas..."}</span><strong>{Math.round(importProgress * 100)}%</strong></div><progress max="100" value={Math.round(importProgress * 100)} /></div>}
-          {importError && <div className="import-feedback feedback-warning" role="alert">{importError}</div>}
+          <ImportIssues error={importError} warnings={importWarnings} fileName={importFile?.name} />
           {importSuccess && <div className="import-feedback feedback-success" role="status">{importSuccess}</div>}
           {(ordersPreview.length > 0 || bonificationsPreview.length > 0 || importWarnings.length > 0) && <div className="intelligent-import-results">
+            <p>Identificados no PDF: {detected.orders} compra(s) e {detected.bonifications} bonificação(ões). A prévia abaixo contém os registros novos com cliente e produtos correspondentes.</p>
             <div className="intelligent-import-counts"><span><ShoppingCart size={16} /><strong>{ordersPreview.length}</strong> pedido(s)</span><span><Gift size={16} /><strong>{bonificationsPreview.length}</strong> bonificação(ões)</span><small>{importWarnings.length} aviso(s)</small></div>
             {ordersPreview.length > 0 && <section><h3>Pedidos de compra</h3><div className="table-wrap network-import-table-wrap"><table><thead><tr><th>PEDIDO</th><th>CLIENTE</th><th>ITENS</th><th>VALOR</th><th>PESO</th></tr></thead><tbody>{ordersPreview.map((order) => <tr key={order.id}><td>{order.preOrder}</td><td>{order.customerName} · {order.customerCode}</td><td>{order.items.length}</td><td>{`R$ ${order.totalValue.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</td><td>{order.totalWeight.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} kg</td></tr>)}</tbody></table></div></section>}
             {bonificationsPreview.length > 0 && <section><h3>Pedidos de bonificação sem incidência de custo</h3><div className="table-wrap network-import-table-wrap"><table><thead><tr><th>CONTROLE</th><th>CLIENTE</th><th>ITENS</th><th>VALOR REF.</th><th>PESO</th></tr></thead><tbody>{bonificationsPreview.map((bonus) => <tr key={`${bonus.bonusNumber}:${bonus.customerId}`}><td>{bonus.bonusNumber}</td><td>{bonus.customerName} · {bonus.customerCode}</td><td>{bonus.items.length}</td><td>{`R$ ${bonus.totalValue.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</td><td>{bonus.totalWeight.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} kg</td></tr>)}</tbody></table></div></section>}
-            {importWarnings.length > 0 && <details className="network-import-warnings"><summary>Ver avisos ({importWarnings.length})</summary><ul>{importWarnings.slice(0, 50).map((warning, index) => <li key={`${index}:${warning}`}>{warning}</li>)}</ul>{importWarnings.length > 50 && <small>Mais {importWarnings.length - 50} aviso(s) não exibidos.</small>}</details>}
+
             {(ordersPreview.length > 0 || bonificationsPreview.length > 0) && <button type="button" className="button button-primary intelligent-import-confirm" disabled={isImporting} onClick={() => void confirmIntelligentImport()}><Upload size={15} /> Importar registros conferidos</button>}
           </div>}
           <button type="button" className="button button-primary intelligent-import-read" disabled={isImporting || !importFile} onClick={() => void readIntelligentImport()}><FileText size={15} /> {isImporting ? "Processando..." : "Ler e classificar documento"}</button>

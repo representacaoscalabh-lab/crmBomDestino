@@ -1,7 +1,9 @@
 import * as XLS from "@e965/xlsx";
 import ExcelJS from "exceljs";
 
-export type SpreadsheetRow = Record<string, unknown>;
+import { SPREADSHEET_ROW_NUMBER } from "@/lib/import-validation";
+export { SPREADSHEET_ROW_NUMBER };
+export type SpreadsheetRow = Record<string, unknown> & { [SPREADSHEET_ROW_NUMBER]?: number };
 
 export const MAX_SPREADSHEET_SIZE = 10 * 1024 * 1024;
 
@@ -19,8 +21,12 @@ export async function readSpreadsheetRows(file: File): Promise<SpreadsheetRow[]>
   const [headerRow, ...dataRows] = matrix;
   const headers = (headerRow ?? []).map((header) => String(header ?? "").trim());
   return dataRows
-    .filter((row) => row.some((cell) => String(cell ?? "").trim()))
-    .map((row) => Object.fromEntries(headers.map((header, index) => [header, row[index] ?? ""])));
+    .map((row, index) => ({ row, rowNumber: index + 2 }))
+    .filter(({ row }) => row.some((cell) => String(cell ?? "").trim()))
+    .map(({ row, rowNumber }) => ({
+      ...Object.fromEntries(headers.map((header, index) => [header, row[index] ?? ""])),
+      [SPREADSHEET_ROW_NUMBER]: rowNumber,
+    }));
 }
 
 export async function downloadXlsx(

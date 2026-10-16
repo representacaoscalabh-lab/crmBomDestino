@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 import { Download, FileSpreadsheet, Upload, X } from "lucide-react";
+import { ImportIssues } from "@/components/import-issues";
+import { ImportValidationError, importFailureMessage } from "@/lib/import-validation";
 
 type SpreadsheetImportModalProps = {
   open: boolean;
@@ -10,7 +12,7 @@ type SpreadsheetImportModalProps = {
   formatDescription: string;
   formatHint: string;
   onTemplate: () => Promise<void>;
-  onImport: (file: File) => Promise<string>;
+  onImport: (file: File) => Promise<string | { message: string; warnings: string[] }>;
   onClose: () => void;
 };
 
@@ -25,38 +27,49 @@ export function SpreadsheetImportModal({
   onClose,
 }: SpreadsheetImportModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importLock = useRef(false);
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [templateBusy, setTemplateBusy] = useState(false);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [reportFileName, setReportFileName] = useState("");
 
   if (!open) return null;
 
   async function importFile() {
+    if (importLock.current) return;
     if (!file) {
       setError("Selecione uma planilha para importar.");
       return;
     }
+    importLock.current = true;
     setBusy(true);
+    setReportFileName(file.name);
     setError("");
     setMessage("");
+    setWarnings([]);
     try {
       if (file.size > 10 * 1024 * 1024) throw new Error("O arquivo excede o limite de 10 MB.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Arquivo inválido.");
       setBusy(false);
+      importLock.current = false;
       return;
     }
     try {
-      setMessage(await onImport(file));
+      const result = await onImport(file);
+      setMessage(typeof result === "string" ? result : result.message);
+      setWarnings(typeof result === "string" ? [] : result.warnings);
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (cause) {
-      console.error(`Falha ao importar ${title.toLowerCase()}.`, cause);
-      setError(cause instanceof Error ? cause.message : `Não foi possível importar ${title.toLowerCase()}.`);
+      setError(importFailureMessage(cause, cause instanceof Error ? cause.message : `Não foi possível importar ${title.toLowerCase()}.`));
+      if (cause instanceof ImportValidationError) setWarnings(cause.warnings);
     } finally {
       setBusy(false);
+      importLock.current = false;
     }
   }
 
@@ -95,6 +108,7 @@ export function SpreadsheetImportModal({
                 setFile(selected);
                 setError(selected && selected.size > 10 * 1024 * 1024 ? "O arquivo excede o limite de 10 MB." : "");
                 setMessage("");
+                setWarnings([]);
               }}
             />
             <span className="spreadsheet-upload-icon"><Upload size={20} /></span>
@@ -104,7 +118,7 @@ export function SpreadsheetImportModal({
             <div><strong>Formato esperado</strong><p>{formatHint}</p></div>
             <button className="button button-outline spreadsheet-template-button" disabled={busy || templateBusy} onClick={() => { void downloadTemplate(); }}><Download size={15} /> {templateBusy ? "Gerando..." : "Template"}</button>
           </div>
-          {error && <p className="form-error spreadsheet-import-message" role="alert">{error}</p>}
+          <ImportIssues error={error} warnings={warnings} fileName={file?.name || reportFileName} />
           {message && <p className="import-feedback feedback-success spreadsheet-import-message" role="status">{message}</p>}
         </div>
         <div className="modal-footer spreadsheet-import-footer">

@@ -1,0 +1,75 @@
+.settings-page { display: flex; flex-direction: column; gap: 28px; }
+.settings-page .settings-hero { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 0 0 26px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; box-shadow: none; }
+.settings-page .settings-hero h1 { margin: 5px 0 10px; color: var(--ink); font-size: 32px; }
+.settings-page .settings-hero-copy > div > p:last-child { color: var(--muted); font-size: 14px; line-height: 1.6; }
+.settings-page .admin-pill { flex-shrink: 0; border-color: var(--line); background: var(--surface); color: var(--brand); font-size: 12px; }
+.settings-workspace { display: grid; grid-template-columns: 260px minmax(0, 1fr); align-items: start; gap: 32px; }
+.settings-menu { min-width: 0; }
+.settings-menu-label { margin: 0 12px 14px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .13em; }
+.settings-page .settings-tabs { flex-direction: column; gap: 8px; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.settings-page .settings-tab { width: 100%; min-height: 76px; padding: 14px 12px; gap: 12px; border: 1px solid transparent; border-radius: 12px; color: var(--muted); text-align: left; font-weight: 500; }
+.settings-page .settings-tab > svg { flex-shrink: 0; }
+.settings-page .settings-tab:hover { background: var(--surface); color: var(--brand); }
+.settings-page .settings-tab-active { border-color: #e7ced7; background: var(--brand-soft); color: var(--brand); box-shadow: none; }
+.settings-page .settings-tab > .settings-tab-copy { display: flex; flex: 1; min-width: 0; height: auto; flex-direction: column; align-items: flex-start; gap: 4px; padding: 0; border-radius: 0; background: transparent; color: inherit; }
+.settings-tab-copy strong { font-size: 13px; font-weight: 650; }
+.settings-tab-copy small { font-size: 11px; color: var(--muted); font-weight: 400; }
+.settings-page .settings-tab-count { min-width: 23px; height: 23px; padding: 0 6px; background: var(--surface); color: var(--brand); font-size: 11px; }
+.settings-account { display: flex; align-items: center; gap: 10px; margin-top: 28px; padding: 20px 10px 0; border-top: 1px solid var(--line); }
+.settings-account-avatar { display: grid; flex-shrink: 0; place-items: center; width: 35px; height: 35px; border-radius: 50%; background: var(--surface); color: var(--brand); }
+.settings-account > div { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
+.settings-account strong { overflow-wrap: anywhere; color: var(--ink); font-size: 12px; font-weight: 600; }
+.settings-account small { overflow-wrap: anywhere; color: var(--muted); font-size: 11px; }
+.settings-account > svg { flex-shrink: 0; color: var(--brand); }
+.settings-main { min-width: 0; }
+.settings-page .settings-section-panel { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); }
+.settings-page .settings-section-heading { gap: 14px; min-height: 100px; padding: 24px; border-bottom: 1px solid var(--line); }
+.settings-page .settings-section-icon { width: 42px; height: 42px; background: var(--brand-soft); color: var(--brand); border-radius: 11px; }
+.settings-page .settings-section-heading h2 { margin-bottom: 5px; color: var(--ink); font-size: 18px; letter-spacing: -.025em; }
+.settings-page .settings-section-heading > div > p:last-child { color: var(--muted); font-size: 13px; line-height: 1.6; }
+.settings-page .request-count { background: var(--brand-soft); color: var(--brand); font-size: 12px; }
+.settings-page .settings-request-list { padding: 8px 24px; gap: 0; }
+.settings-page .settings-request-card { gap: 14px; padding: 20px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; }
+.settings-page .settings-request-card:last-child { border-bottom: 0; }
+.settings-page .request-copy { min-width: 0; }
+.settings-page .settings-request-card .request-copy strong { color: var(--ink); font-size: 14px; overflow-wrap: anywhere; }
+.settings-page .settings-request-card .request-copy small { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.settings-page .settings-pending-status { font-size: 11px; font-weight: 500; white-space: nowrap; }
+.settings-page .settings-request-card .button { min-height: 38px; font-size: 12px; }
+.settings-page .settings-empty-state { min-height: 320px; padding: 40px 24px; }
+.settings-page .settings-empty-state > span { width: 64px; height: 64px; margin-bottom: 20px; border-radius: 50%; background: var(--brand-soft); color: var(--brand); }
+.settings-page .settings-empty-state strong { color: var(--ink); font-size: 17px; font-weight: 600; }
+.settings-page .settings-empty-state p { max-width: 320px; margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.settings-page .settings-empty-state .button { margin-top: 20px; }
+.settings-page .settings-note { gap: 9px; padding: 15px 24px; border-top-color: var(--line); background: var(--canvas); color: var(--muted); font-size: 12px; line-height: 1.6; }
+.settings-form-title { display: flex; flex-direction: column; gap: 5px; margin: 24px 24px 0; padding: 20px 20px 0; border: 1px solid var(--line); border-bottom: 0; border-radius: 12px 12px 0 0; background: var(--canvas); }
+.settings-form-title strong { color: var(--ink); font-size: 14px; font-weight: 600; }
+.settings-form-title span { color: var(--muted); font-size: 12px; }
+.settings-page .settings-term-form { grid-template-columns: minmax(80px, .5fr) minmax(140px, 1fr); gap: 16px; margin: 0 24px 24px; padding: 18px 20px 20px; border: 1px solid var(--line); border-top: 0; border-radius: 0 0 12px 12px; background: var(--canvas); }
+.settings-page .settings-term-form label { min-width: 0; gap: 8px; color: var(--ink); font-size: 12px; font-weight: 500; }
+.settings-page .settings-term-form input, .settings-page .settings-term-form select { width: 100%; min-width: 0; height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 14px; }
+.settings-page .settings-term-actions { grid-column: 1 / -1; justify-content: flex-end; }
+.settings-page .settings-term-actions .button { min-height: 40px; font-size: 12px; }
+.settings-list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; border-top: 1px solid var(--line); }
+.settings-list-toolbar > span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.settings-list-toolbar .search-field { flex: 0 1 280px; width: 280px; min-width: 0; border: 1px solid var(--line); background: var(--surface); color: var(--muted); }
+.settings-list-toolbar input { color: var(--ink); font-size: 13px; }
+.settings-page .settings-term-list { grid-template-columns: 1fr; gap: 0; padding: 0 24px 16px; }
+.settings-page .settings-term-card { min-height: 76px; padding: 16px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; }
+.settings-page .settings-term-card:last-child { border-bottom: 0; }
+.settings-page .settings-term-code { min-width: 48px; max-width: 130px; height: auto; min-height: 38px; padding: 8px; border-radius: 8px; background: var(--brand-soft); color: var(--brand); font-size: 12px; overflow-wrap: anywhere; }
+.settings-page .settings-term-card > div:nth-child(2) strong { color: var(--ink); font-size: 14px; white-space: normal; overflow-wrap: anywhere; }
+.settings-page .settings-term-card > div:nth-child(2) small { color: var(--muted); font-size: 11px; }
+.settings-page .settings-terms-empty { min-height: 220px; }
+.settings-page .settings-terms-section > .import-feedback { margin: 0 24px 20px; }
+.settings-footnote { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 18px 0 0; color: var(--muted); font-size: 11px; }
+.settings-page .settings-approval-modal { padding: 28px; border-color: var(--line); border-radius: 18px; background: var(--surface); box-shadow: 0 24px 90px #21121c33; }
+.settings-page .settings-approval-modal h2, .settings-page .settings-user-detail strong { color: var(--ink); }
+.settings-page .settings-modal-description, .settings-page .settings-user-detail small, .settings-page .settings-approval-info { color: var(--muted); font-size: 13px; line-height: 1.7; }
+.settings-page .settings-user-detail { border-color: var(--line); background: var(--canvas); }
+.settings-page .settings-modal-actions { border-top-color: var(--line); }
+.dark-theme .settings-page .settings-tab-active { border-color: #694451; }
+.dark-theme .settings-page .admin-pill { color: #e5b4c4; }
+@media (max-width: 1150px) { .settings-workspace { grid-template-columns: 225px minmax(0, 1fr); gap: 20px; }.settings-page .settings-request-card { flex-wrap: wrap; }.settings-page .settings-pending-status { margin-left: auto; } }
+@media (max-width: 950px) { .settings-workspace { grid-template-columns: 1fr; gap: 20px; }.settings-page .settings-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }.settings-menu-label, .settings-account { display: none; } }
+@media (max-width: 560px) { .settings-page { gap: 20px; }.settings-page .settings-hero { align-items: flex-start; flex-direction: column; gap: 14px; padding-bottom: 20px; }.settings-page .settings-hero h1 { font-size: 28px; }.settings-page .settings-tab { min-height: 84px; padding: 12px; gap: 8px; flex-wrap: wrap; }.settings-page .settings-tab-copy { flex-basis: calc(100% - 30px); }.settings-tab-copy strong { font-size: 12px; }.settings-tab-copy small { font-size: 10px; }.settings-page .settings-tab-count { display: none; }.settings-page .settings-section-heading { align-items: flex-start; padding: 20px 16px; gap: 10px; }.settings-page .settings-section-heading h2 { font-size: 17px; }.settings-page .settings-section-heading > div > p:last-child { font-size: 12px; }.settings-page .settings-section-icon { display: none; }.settings-page .settings-request-list { padding: 0 16px; }.settings-page .settings-note { padding: 14px 16px; }.settings-form-title { margin: 16px 16px 0; padding: 16px 14px 0; }.settings-page .settings-term-form { grid-template-columns: 1fr; margin: 0 16px 20px; padding: 16px 14px; }.settings-page .settings-term-actions { flex-wrap: wrap; }.settings-page .settings-term-actions .button { flex: 1; }.settings-list-toolbar { align-items: stretch; flex-direction: column-reverse; padding: 18px 16px; gap: 12px; }.settings-list-toolbar .search-field { width: 100%; flex-basis: auto; }.settings-page .settings-term-list { padding: 0 16px 10px; }.settings-page .settings-approval-modal { padding: 22px; }.settings-footnote { align-items: flex-start; font-size: 10px; } }

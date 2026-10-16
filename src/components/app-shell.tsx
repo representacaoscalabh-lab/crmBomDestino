@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  ArrowLeftRight,
   Bell,
   ChevronDown,
   ChevronUp,
@@ -42,19 +41,18 @@ const navigation = [
 ];
 
 const reportLinks = [
-  { href: "/acompanhamento-redes", label: "Acompanhamento de Redes", icon: Network },
+  { href: "/relatorios/mart-minas", label: "Mart Minas", icon: Network },
   { href: "/relatorios", label: "Relatórios", icon: ClipboardList },
-  { href: "/graficos", label: "Gráficos", icon: LayoutDashboard },
   { href: "/crescimento/clientes", label: "Crescimento de Clientes", icon: TrendingUp },
   { href: "/crescimento/produtos", label: "Crescimento de Produtos", icon: Package },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { crmUser, signOutUser } = useAuth();
+  const { signOutUser } = useAuth();
   const { dataError } = useCrmStore();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [reportsOpen, setReportsOpen] = useState(() => pathname.startsWith("/relatorios") || pathname.startsWith("/graficos") || pathname.startsWith("/crescimento") || pathname.startsWith("/acompanhamento-redes"));
+  const [reportsOpen, setReportsOpen] = useState(() => pathname.startsWith("/relatorios") || pathname.startsWith("/crescimento"));
   const [darkMode, setDarkMode] = useState(false);
   const activeLabel = [...navigation, ...reportLinks].find((item) => item.href === pathname)?.label ?? (pathname === "/configuracoes" ? "Configurações" : "Bom Destino");
 
@@ -91,9 +89,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="sidebar-bottom">
           <button className="theme-toggle" onClick={toggleTheme}><span>{darkMode ? <Sun size={17} /> : <Moon size={17} />}{darkMode ? "Claro" : "Escuro"}</span><span className={`theme-switch ${darkMode ? "theme-switch-on" : ""}`} /></button>
-          <button className="sidebar-profile profile-button" onClick={() => void signOutUser()} title="Sair da conta">
-            <div className="avatar avatar-small">BD</div><div><small>{crmUser?.role === "admin" ? "Administrador" : "Usuário aprovado"}</small></div><LogOut size={16} />
-          </button>
         </div>
       </aside>
 
@@ -102,14 +97,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           <button className="icon-button mobile-menu" aria-label="Abrir menu" onClick={() => setMobileOpen(true)}><Menu size={20} /></button>
           <div className="topbar-heading"><span>Visão comercial</span><strong>{activeLabel === "Dashboard" ? "Bom Destino" : activeLabel}</strong></div>
           <div className="topbar-right">
-            <button className="module-switch" title="Módulo atual"><ArrowLeftRight size={14} /> Trocar módulo <ChevronDown size={13} /></button>
+            <button type="button" className="icon-button topbar-control" onClick={() => void signOutUser()} aria-label="Sair da conta" title="Sair da conta"><LogOut size={18} /></button>
             <Link className="icon-button topbar-control" href="/configuracoes" aria-label="Configurações"><Settings size={18} /></Link>
             <Link className="icon-button topbar-control notification-button" href="/notificacoes" aria-label="Notificações"><Bell size={18} /></Link>
           </div>
         </header>
         {dataError && <div className="data-error-banner" role="alert">{dataError}</div>}
         {children}
-        <footer className="app-footer"><span>© {new Date().getFullYear()} Bom Destino Laticínios de Búfala</span><span>CRM Bom Destino <b>•</b> Versão inicial</span></footer>
+        <footer className="app-footer"><span>© {new Date().getFullYear()} Bom Destino Laticínios de Búfala</span><span>CRM Bom Destino <b>•</b> Versão 2.0</span></footer>
       </main>
     </div>
   );

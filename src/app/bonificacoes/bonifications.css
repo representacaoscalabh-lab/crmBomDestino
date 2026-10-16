@@ -1,0 +1,83 @@
+.bonification-page { gap: 20px; }
+.bonification-page .orders-page-heading { padding: 4px 0 22px; }
+.bonification-page .orders-page-title h1 { color: var(--ink); font-size: 30px; }
+.bonus-page-description { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
+.bonification-page .orders-page-actions .button { min-height: 42px; padding: 0 16px; font-size: 13px; }
+.bonification-page .bonus-filter-card { gap: 20px; padding: 22px; border-color: var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
+.bonification-page .order-filter-heading h2 { color: var(--ink); font-size: 15px; }
+.bonification-page .order-filter-heading p { color: var(--muted); font-size: 12px; }
+.bonification-page .order-filter-icon { border-color: var(--line); background: var(--brand-soft); color: var(--brand); }
+.bonification-page .order-filter-count { border-color: var(--line); background: var(--canvas); color: var(--muted); font-size: 11px; font-weight: 500; }
+.bonus-filter-grid { display: grid; grid-template-columns: minmax(210px, 1.3fr) minmax(140px, .8fr) minmax(140px, .8fr) minmax(285px, 1.5fr); gap: 16px; }
+.bonus-filter-grid .filter-field { display: flex; min-width: 0; flex-direction: column; gap: 8px; color: var(--ink); font-size: 12px; font-weight: 500; }
+.bonus-filter-grid .search-field, .bonus-filter-grid select, .bonus-filter-grid .date-input-wrap { width: 100%; min-width: 0; height: 43px; min-height: 43px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
+.bonus-filter-grid select, .bonus-filter-grid input { color: var(--ink); font-size: 13px; font-weight: 400; }
+.bonus-filter-grid .search-field { color: var(--muted); }
+.bonus-filter-grid .search-field input { height: 40px; min-width: 0; }
+.bonus-filter-grid .order-date-range { gap: 7px; }
+.bonus-filter-grid .date-input-wrap { display: flex; align-items: center; flex: 1; padding: 0 7px; }
+.bonus-filter-grid .date-input-wrap input { width: 100%; min-width: 0; height: 40px; padding: 0; border: 0; background: transparent; color: var(--ink); font-size: 12px; }
+.bonus-filter-grid .order-date-range > span { color: var(--muted); font-size: 11px; }
+.bonification-page .order-filter-actions { padding-top: 16px; border-top-color: var(--line); }
+.bonification-page .order-filter-actions > span { color: var(--muted); font-size: 12px; }
+.bonification-page .order-filter-actions .button { min-height: 39px; font-size: 12px; }
+.bonification-page .order-filter-actions .button-light { border-color: var(--line); background: var(--surface); color: var(--muted); }
+.bonus-filter-error { margin: 0; padding: 10px 12px; border-radius: 8px; background: var(--brand-soft); color: var(--brand); font-size: 13px; }
+.bonus-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.bonus-summary article { display: flex; align-items: center; gap: 14px; min-width: 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.bonus-summary-icon, .bonus-summary-currency { display: grid; flex-shrink: 0; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--brand-soft); color: var(--brand); }
+.bonus-summary-currency { font-size: 13px; font-weight: 650; }
+.bonus-summary article > div { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
+.bonus-summary article > div > span { color: var(--muted); font-size: 12px; }
+.bonus-summary strong { overflow-wrap: anywhere; color: var(--ink); font-family: "Manrope", sans-serif; font-size: clamp(19px, 1.8vw, 25px); font-weight: 650; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+.bonification-page .bonus-list-panel { overflow: hidden; border-color: var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
+.bonification-page .order-count-bar { gap: 12px; padding: 18px 22px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.bonus-list-hint { color: var(--muted); font-size: 11px; }
+.bonification-page .bonification-table-wrap table { min-width: 1080px; }
+.bonification-page .bonification-table-wrap th { padding: 15px 18px; background: var(--canvas); color: var(--muted); font-size: 11px; letter-spacing: 0; text-transform: none; }
+.bonification-page .bonification-table-wrap td { height: 74px; padding: 16px 18px; border-bottom: 1px solid var(--line); color: var(--ink); font-size: 13px; font-variant-numeric: tabular-nums; }
+.bonification-page .bonification-table-wrap tbody tr:last-child td { border-bottom: 0; }
+.bonification-page .bonus-customer-cell { min-width: 220px; max-width: 300px; white-space: normal; }
+.bonification-page .bonus-customer-cell strong { color: var(--ink); font-size: 13px; font-weight: 600; line-height: 1.5; }
+.bonification-page .bonus-customer-cell small { margin-top: 4px; color: var(--muted); font-size: 11px; }
+.bonus-control-code { display: inline-block; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--brand); font-size: 11px; font-weight: 600; white-space: nowrap; }
+.bonus-reason-tag { display: inline-block; max-width: 190px; padding: 5px 9px; border-radius: 6px; background: var(--brand-soft); color: var(--brand); font-size: 11px; line-height: 1.5; white-space: normal; }
+.bonus-date-cell, .bonus-numeric-cell { white-space: nowrap; }
+.bonification-page .bonus-value-cell { font-weight: 650; }
+.bonus-actions-heading { text-align: right; }
+.bonification-page .order-row-actions { justify-content: flex-end; gap: 6px; }
+.bonification-page .order-row-actions button { display: grid; place-items: center; width: 33px; height: 33px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); }
+.bonification-page .order-row-actions button:hover { border-color: #d2aab8; background: var(--brand-soft); color: var(--brand); }
+.bonification-page .order-row-actions .bonus-delete-action:hover { border-color: #dba6a6; color: #a03542; }
+.bonification-page .bonus-empty { min-height: 310px; border: 0; border-radius: 0; background: var(--surface); }
+.bonification-page .bonus-empty .page-empty-icon { background: var(--brand-soft); color: var(--brand); }
+.bonification-page .bonus-empty strong { color: var(--ink); font-size: 18px; }
+.bonification-page .bonus-empty p { color: var(--muted); font-size: 13px; }
+.bonification-page .bonification-modal, .bonification-page .bonification-view-modal { border-color: var(--line); border-radius: 16px; background: var(--surface); }
+.bonification-page .order-editor-heading { padding: 22px 24px; border-bottom-color: var(--line); background: var(--surface); }
+.bonification-page .order-editor-heading h2 { color: var(--ink); font-size: 21px; }
+.bonification-page .order-editor-heading p { color: var(--muted); font-size: 12px; }
+.bonification-page .order-editor-heading .eyebrow { color: var(--brand); font-size: 10px; }
+.bonification-page .bonification-form-body { gap: 18px; padding: 22px; background: var(--canvas); }
+.bonification-page .order-form-section { padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.bonification-page .order-section-title { margin-bottom: 20px; }
+.bonification-page .order-section-title > span { border-color: var(--line); background: var(--brand-soft); color: var(--brand); }
+.bonification-page .order-section-title h3 { color: var(--ink); font-size: 15px; }
+.bonification-page .order-section-title p { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.bonification-page .bonification-form-grid, .bonification-page .bonification-add-item { gap: 16px; }
+.bonification-page .bonification-form-grid label, .bonification-page .bonification-add-item label { gap: 8px; color: var(--ink); font-size: 12px; font-weight: 500; }
+.bonification-page .bonification-form-grid input, .bonification-page .bonification-form-grid select, .bonification-page .bonification-form-grid textarea, .bonification-page .bonification-add-item input, .bonification-page .bonification-add-item select { min-height: 43px; padding: 10px 12px; border-color: var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 13px; }
+.bonification-page .bonification-form-grid textarea { min-height: 80px; }
+.bonification-page .bonification-add-item .button { min-height: 43px; font-size: 12px; }
+.bonification-page .bonification-items-wrap { margin-top: 20px; border: 1px solid var(--line); border-radius: 9px; }
+.bonification-page .bonification-items-wrap th { background: var(--canvas); color: var(--muted); font-size: 10px; }
+.bonification-page .bonification-items-wrap td { color: var(--ink); border-color: var(--line); font-size: 12px; }
+.bonification-page .bonification-items-wrap td input { border-color: var(--line); background: var(--surface); color: var(--ink); }
+.bonification-page .bonification-form-totals, .bonification-page .bonification-view-total { margin-top: 16px; padding: 16px; border-radius: 10px; background: var(--brand-soft); color: var(--ink); font-size: 13px; }
+.bonification-page .order-editor-footer { gap: 10px; padding: 18px 24px; border-color: var(--line); background: var(--surface); }
+.bonification-page .order-editor-footer .button { min-height: 42px; font-size: 13px; }
+.dark-theme .bonification-page .bonus-control-code, .dark-theme .bonification-page .bonus-reason-tag, .dark-theme .bonus-summary-icon, .dark-theme .bonus-summary-currency, .dark-theme .bonification-page .order-filter-icon { color: #e6b4c5; }
+.dark-theme .bonification-page .bonification-form-totals strong, .dark-theme .bonification-page .bonification-view-total strong { color: #e6b4c5; }
+@media (max-width: 1200px) { .bonus-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.bonus-summary article { padding: 16px; gap: 10px; } }
+@media (max-width: 760px) { .bonification-page { gap: 16px; }.bonification-page .orders-page-heading { align-items: flex-start; flex-direction: column; gap: 16px; }.bonification-page .orders-page-actions { width: 100%; }.bonification-page .orders-page-actions .button { flex: 1; }.bonification-page .bonus-filter-card { padding: 18px; }.bonification-page .order-filter-actions { align-items: flex-start; flex-direction: column; gap: 14px; }.bonification-page .order-filter-actions > div { width: 100%; }.bonification-page .order-filter-actions .button { flex: 1; }.bonus-summary { gap: 10px; }.bonus-summary article { align-items: flex-start; flex-direction: column; gap: 12px; }.bonus-summary strong { font-size: 19px; }.bonus-list-hint { display: none; }.bonification-page .order-count-bar { padding: 16px; }.bonification-page .bonification-form-body { padding: 14px; }.bonification-page .order-form-section { padding: 16px; } }
+@media (max-width: 520px) { .bonification-page .orders-page-title h1 { font-size: 27px; }.bonus-filter-grid { grid-template-columns: 1fr; }.bonification-page .order-filter-count { display: none; }.bonus-summary { grid-template-columns: 1fr; gap: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }.bonus-summary article { flex-direction: row; align-items: center; padding: 15px 18px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; }.bonus-summary article:last-child { border-bottom: 0; }.bonus-summary article > div { flex: 1; flex-direction: row; justify-content: space-between; align-items: center; gap: 12px; }.bonus-summary strong { font-size: 18px; text-align: right; }.bonus-summary-icon, .bonus-summary-currency { width: 32px; height: 32px; }.bonification-page .bonification-add-item { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.bonification-page .bonification-add-item label:first-child { grid-column: 1 / -1; }.bonification-page .bonification-add-item > .button { grid-column: 1 / -1; }.bonification-page .order-editor-heading { padding: 18px; }.bonification-page .order-editor-footer { padding: 14px; } }

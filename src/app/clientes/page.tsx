@@ -69,6 +69,8 @@ export default function CustomersPage() {
   const [groupSearch, setGroupSearch] = useState("");
   const [groupError, setGroupError] = useState("");
   const [savingGroup, setSavingGroup] = useState(false);
+  const [groupTab, setGroupTab] = useState<"stores" | "sellers">("stores");
+  const [onlySelectedStores, setOnlySelectedStores] = useState(false);
   const [confirmingGroupDelete, setConfirmingGroupDelete] = useState(false);
   const [error, setError] = useState("");
   const cities = useMemo(() => [...new Set(customers.map((customer) => customer.city.trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right, "pt-BR")), [customers]);
@@ -197,6 +199,8 @@ export default function CustomersPage() {
   }
 
   function startNewGroup() {
+    setGroupTab("stores");
+    setOnlySelectedStores(false);
     setGroupSellers({});
     setEditingGroupId(null);
     setGroupName("");
@@ -207,6 +211,8 @@ export default function CustomersPage() {
   }
 
   function editGroup(groupId: string) {
+    setGroupTab("stores");
+    setOnlySelectedStores(false);
     const group = customerGroups.find((item) => item.id === groupId);
     if (!group) return;
     setEditingGroupId(group.id);
@@ -220,11 +226,13 @@ export default function CustomersPage() {
 
   async function submitGroup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (savingGroup) return;
     if (!groupName.trim()) {
       setGroupError("Informe um nome para a rede.");
       return;
     }
     if (groupCustomerIds.length < 2) {
+      setGroupTab("stores");
       setGroupError("Selecione pelo menos duas lojas para formar uma rede.");
       return;
     }
@@ -235,6 +243,7 @@ export default function CustomersPage() {
     setSavingGroup(true);
     try {
       if (groupCustomerIds.some((id) => id in groupSellers && !groupSellers[id].trim())) {
+        setGroupTab("sellers");
         setGroupError("Informe o vendedor de cada loja marcada como Outro vendedor.");
         return;
       }
@@ -271,7 +280,7 @@ export default function CustomersPage() {
     }
   }
 
-  const groupCustomers = customers.filter((customer) => `${customer.name} ${customer.code} ${customer.city} ${customer.store}`.toLowerCase().includes(groupSearch.toLowerCase()));
+  const groupCustomers = customers.filter((customer) => (!onlySelectedStores || groupCustomerIds.includes(customer.id)) && `${customer.name} ${customer.code} ${customer.city} ${customer.store} ${customer.document ?? ""}`.toLowerCase().includes(groupSearch.toLowerCase()));
 
   async function confirmDelete() {
     if (!pendingDelete) return;
@@ -337,24 +346,32 @@ export default function CustomersPage() {
         })}</tbody></table></div> : <div className="page-empty"><span className="page-empty-icon"><UsersRound size={23} /></span><strong>{search || segment !== "Todos" || status !== "Todos" || city !== "Todas" || groupFilter !== "Todos" ? "Nenhum cliente encontrado" : "Sua carteira está pronta para começar"}</strong><p>{customers.length ? "Experimente ajustar a busca ou os filtros." : "Cadastre seu primeiro cliente para começar a organizar a carteira."}</p>{!customers.length && <button className="button button-outline" onClick={() => { setEditingCustomer(null); setShowForm(true); }}><Plus size={16} /> Cadastrar cliente</button>}</div>}
       </section>
       {showGroups && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !savingGroup) setShowGroups(false); }}>
-        <section className="customer-group-modal" role="dialog" aria-modal="true" aria-labelledby="customer-group-title">
-          <div className="modal-heading"><div><p className="eyebrow">CARTEIRA COMERCIAL</p><h2 id="customer-group-title">Redes de clientes</h2><p>Agrupe lojas de um mesmo cliente para consultar o resultado de cada loja e o consolidado da rede.</p></div><button type="button" className="icon-button" aria-label="Fechar" onClick={() => setShowGroups(false)}><X size={20} /></button></div>
+        <section className="customer-group-modal network-editor" role="dialog" aria-modal="true" aria-labelledby="customer-group-title">
+          <div className="modal-heading"><div><p className="eyebrow">CARTEIRA COMERCIAL</p><h2 id="customer-group-title">Redes de clientes</h2><p>Agrupe lojas de um mesmo cliente para consultar o resultado de cada loja e o consolidado da rede.</p></div><button type="button" className="icon-button" aria-label="Fechar" disabled={savingGroup} onClick={() => setShowGroups(false)}><X size={20} /></button></div>
           <div className="customer-group-content">
             <div className="customer-group-picker"><label>Rede existente<select value={editingGroupId ?? ""} onChange={(event) => event.target.value ? editGroup(event.target.value) : startNewGroup()}><option value="">Criar uma nova rede</option>{customerGroups.map((group) => <option key={group.id} value={group.id}>{group.name} ({customers.filter((customer) => customer.groupId === group.id).length} lojas)</option>)}</select></label><button type="button" className="button button-outline" onClick={startNewGroup}><Plus size={15} /> Nova rede</button></div>
-            <form onSubmit={(event) => void submitGroup(event)}>
+            <form className="network-editor-form" onSubmit={(event) => void submitGroup(event)}>
               <label className="customer-group-name-field">Nome da rede<input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="Ex.: Rede Mercado Bom Preço" /></label>
+              <div className="network-editor-tabs" role="tablist" aria-label="Configurar rede">
+                <button type="button" id="network-stores-tab" role="tab" aria-selected={groupTab === "stores"} aria-controls="network-stores-panel" onClick={() => setGroupTab("stores")}><Building2 size={16} /> Lojas <span>{groupCustomerIds.length}</span></button>
+                <button type="button" id="network-sellers-tab" role="tab" aria-selected={groupTab === "sellers"} aria-controls="network-sellers-panel" onClick={() => setGroupTab("sellers")}><UsersRound size={16} /> Responsáveis</button>
+              </div>
+              <fieldset className="network-editor-scroll" disabled={savingGroup}>
+              <div id="network-stores-panel" role="tabpanel" aria-labelledby="network-stores-tab" hidden={groupTab !== "stores"}>
+              <label className="network-selected-filter"><input type="checkbox" checked={onlySelectedStores} onChange={(event) => setOnlySelectedStores(event.target.checked)} /> Mostrar apenas selecionadas</label>
               <div className="customer-group-select-heading"><div><strong>Selecione as lojas</strong><span>{groupCustomerIds.length} loja(s) selecionada(s)</span></div><div><button type="button" onClick={() => setGroupCustomerIds((current) => Array.from(new Set([...current, ...groupCustomers.map((customer) => customer.id)])))}>Selecionar visíveis</button><button type="button" onClick={() => setGroupCustomerIds([])}>Limpar</button></div></div>
               <div className="customer-group-search"><Search size={16} /><input aria-label="Buscar lojas para adicionar à rede" value={groupSearch} onChange={(event) => setGroupSearch(event.target.value)} placeholder="Buscar por nome, código ou cidade..." /></div>
               <div className="customer-group-members">{groupCustomers.map((customer) => {
                 const otherGroup = customerGroups.find((group) => group.id === customer.groupId && group.id !== editingGroupId);
                 return <label key={customer.id} className="customer-group-member"><input type="checkbox" checked={groupCustomerIds.includes(customer.id)} onChange={(event) => setGroupCustomerIds((current) => event.target.checked ? [...current, customer.id] : current.filter((id) => id !== customer.id))} /><span><strong>{customer.name}</strong><small>Cód. {customer.code} · {customer.city || "Cidade não informada"} · Loja {customer.store || "—"}</small></span>{otherGroup && <em>Será movida de {otherGroup.name}</em>}</label>;
               })}{groupCustomers.length === 0 && <p className="customer-group-empty">Nenhum cadastro corresponde à busca.</p>}</div>
-              <section className="customer-group-sellers" aria-label="Vendedores das lojas">
+              </div>
+              <section className="customer-group-sellers" id="network-sellers-panel" role="tabpanel" aria-labelledby="network-sellers-tab" hidden={groupTab !== "sellers"}>
                 <strong>Quem atende cada loja?</strong>
                 {sellersError && <p role="alert">{sellersError}</p>}
                 {!sellersLoading && !sellersError && sellers.length === 0 && <p>Cadastre os vendedores em Configurações → Vendedores.</p>}
                 <p>Lojas de outro vendedor continuam na rede e recebem pedidos normalmente, mas ficam fora de todas as métricas do dashboard. A seleção vale também para pedidos já importados.</p>
-                {groupCustomers.filter((customer) => groupCustomerIds.includes(customer.id)).map((customer) => <div className="customer-group-seller-row" key={customer.id}>
+                {customers.filter((customer) => groupCustomerIds.includes(customer.id)).map((customer) => <div className="customer-group-seller-row" key={customer.id}>
                   <span><strong>{customer.name}</strong><small>Cód. {customer.code} · Loja {customer.store || "—"} · {customer.city}</small></span>
                   <select aria-label={`Responsável pela loja ${customer.code} ${customer.store}`} value={customer.id in groupSellers ? "external" : "ours"} onChange={(event) => setGroupSellers((current) => {
                     const next = { ...current };
@@ -362,7 +379,7 @@ export default function CustomersPage() {
                     else delete next[customer.id];
                     return next;
                   })}><option value="ours">Representação WRRJ</option><option value="external">Outro vendedor</option></select>
-                  {customer.id in groupSellers && <label>Vendedor<select required value={groupSellers[customer.id]} onChange={(event) => setGroupSellers((current) => ({ ...current, [customer.id]: event.target.value }))}>
+                  {customer.id in groupSellers && <label>Vendedor<select value={groupSellers[customer.id]} onChange={(event) => setGroupSellers((current) => ({ ...current, [customer.id]: event.target.value }))}>
                     <option value="">{sellersLoading ? "Carregando vendedores..." : "Selecione o vendedor"}</option>
                     {groupSellers[customer.id] && !sellers.some((seller) => seller.name === groupSellers[customer.id]) && <option value={groupSellers[customer.id]}>{groupSellers[customer.id]} (cadastro anterior)</option>}
                     {sellers.map((seller) => <option key={seller.id} value={seller.name}>{seller.name}</option>)}
@@ -370,9 +387,10 @@ export default function CustomersPage() {
                 </div>)}
                 <small>{groupCustomerIds.filter((id) => id in groupSellers).length} loja(s) de outro vendedor · {groupCustomerIds.filter((id) => !(id in groupSellers)).length} na Representação WRRJ</small>
               </section>
+              </fieldset>
               {groupError && <p className="form-error" role="alert">{groupError}</p>}
               {confirmingGroupDelete && <div className="customer-group-delete-confirm" role="alert"><span>Excluir esta rede? As lojas continuarão cadastradas e seus pedidos serão preservados.</span><button type="button" onClick={() => setConfirmingGroupDelete(false)}>Cancelar</button><button type="button" disabled={savingGroup} onClick={() => void removeGroup()}>{savingGroup ? "Excluindo..." : "Confirmar exclusão"}</button></div>}
-              <div className="customer-group-footer">{editingGroupId && !confirmingGroupDelete && <button type="button" className="button button-outline customer-group-delete" disabled={savingGroup} onClick={() => setConfirmingGroupDelete(true)}><Trash2 size={15} /> Excluir rede</button>}<span className="customer-group-report-hint">Os relatórios serão consolidados usando os pedidos de cada loja.</span><button type="submit" className="button button-primary" disabled={savingGroup}>{savingGroup ? "Salvando..." : editingGroupId ? "Salvar rede" : "Criar rede"}</button></div>
+              <div className="customer-group-footer">{editingGroupId && !confirmingGroupDelete && <button type="button" className="button button-outline customer-group-delete" disabled={savingGroup} onClick={() => setConfirmingGroupDelete(true)}><Trash2 size={15} /> Excluir rede</button>}<button type="button" className="button button-outline" disabled={savingGroup} onClick={() => setShowGroups(false)}>Cancelar</button><span className="customer-group-report-hint">Os relatórios serão consolidados usando os pedidos de cada loja.</span><button type="submit" className="button button-primary" disabled={savingGroup}>{savingGroup ? "Salvando..." : editingGroupId ? "Salvar rede" : "Criar rede"}</button></div>
             </form>
           </div>
         </section>

@@ -22,6 +22,9 @@ export type Customer = {
 export type CustomerGroup = {
   id: string;
   name: string;
+  commissionPercent?: number;
+  sellerCommissionPercent?: number;
+  sellerCommissionBase?: "orders" | "representation";
   /** Store id -> seller name. These stores do not contribute to our dashboard. */
   externalStoreSellers?: Record<string, string>;
 };

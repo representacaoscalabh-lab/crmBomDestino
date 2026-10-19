@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useCrmStore } from "@/lib/store";
 import { getExternalCustomerIds } from "@/lib/dashboard-scope";
+import { DashboardCommission } from "@/components/dashboard-commission";
 
 const number = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -331,6 +332,8 @@ export default function HomePage() {
       <section className="dashboard-metrics" aria-label="Indicadores de vendas">
         {cards.map(({ title, value, detail, icon: Icon }) => <article className="metric-card" key={title}><div className="metric-card-top"><span>{title}</span><span className="metric-icon"><Icon size={19} /></span></div><strong>{value}</strong><small>{detail}</small></article>)}
       </section>
+
+      <DashboardCommission customers={allCustomers} groups={customerGroups} orders={normalOrders} />
 
       <section className="panel executive-panel">
         <div className="executive-heading"><div><p className="eyebrow">RESUMO EXECUTIVO</p><h2>Performance geral</h2></div><span className="goal-count">0 metas ativas</span></div>

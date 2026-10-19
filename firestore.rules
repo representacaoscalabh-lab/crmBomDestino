@@ -74,11 +74,23 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 100;
     }
 
+    match /settings/oesa_nova_safra {
+      allow read: if approved();
+      allow create, update: if admin()
+        && request.resource.data.keys().hasOnly(['groupId', 'reportName', 'updatedAt'])
+        && request.resource.data.groupId is string
+        && (!('reportName' in request.resource.data)
+          || (request.resource.data.reportName is string && request.resource.data.reportName.size() <= 100));
+      allow delete: if admin();
+    }
+
     match /settings/mart_minas {
       allow read: if approved();
       allow create, update: if admin()
-        && request.resource.data.keys().hasOnly(['groupId', 'updatedAt'])
-        && request.resource.data.groupId is string;
+        && request.resource.data.keys().hasOnly(['groupId', 'reportName', 'updatedAt'])
+        && request.resource.data.groupId is string
+        && (!('reportName' in request.resource.data)
+          || (request.resource.data.reportName is string && request.resource.data.reportName.size() <= 100));
       allow delete: if admin();
     }
 

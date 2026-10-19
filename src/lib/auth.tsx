@@ -101,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!firebaseUser) return;
     return onSnapshot(doc(db, "users", firebaseUser.uid), (snapshot) => {
-      if (snapshot.exists()) setCrmUser(snapshot.data() as CrmUser);
+      setCrmUser(snapshot.exists() ? snapshot.data() as CrmUser : null);
     }, (cause) => {
       console.error("Falha ao acompanhar o estado da autorização.", cause);
       setError("Não foi possível acompanhar o estado da sua autorização.");

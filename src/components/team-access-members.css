@@ -1,0 +1,19 @@
+.team-members { padding: 20px 26px; }
+.team-members-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 18px; }
+.team-members-toolbar .search-field { flex: 1; min-width: 200px; }
+.team-members-toolbar select { height: 40px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 0 10px; }
+.team-members-toolbar > span { font-size: 11px; color: var(--muted); }
+.team-members td small { display: block; margin-top: 5px; color: var(--muted); }
+.team-member-actions { display: flex; align-items: center; gap: 10px; }
+.team-member-status { padding: 5px 8px; border-radius: 6px; font-size: 11px; background: var(--canvas); }
+.team-member-status.approved { background: #e9f6ef; color: #27745b; }
+.team-member-status.rejected { background: #fbecea; color: #943e36; }
+.team-members-success { color: #27745b; font-size: 12px; }
+.team-access-modal-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.team-access-modal form label { display: flex; flex-direction: column; gap: 7px; margin-top: 16px; font-size: 12px; font-weight: 600; }
+.team-access-modal form input, .team-access-modal form select { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
+.team-access-modal p { color: var(--muted); font-size: 12px; line-height: 1.7; }
+.team-access-tabs { display: flex; gap: 8px; padding: 0 26px 16px; border-bottom: 1px solid var(--line); }
+.team-access-tabs button { padding: 9px 14px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 8px; cursor: pointer; font: inherit; font-size: 12px; }
+.team-access-tabs button[aria-pressed="true"] { background: var(--brand-soft); color: var(--brand); border-color: var(--brand); }
+@media (max-width: 650px) { .team-members { padding: 16px; }.team-access-tabs { padding: 0 16px 16px; }.team-member-actions { flex-wrap: wrap; } }

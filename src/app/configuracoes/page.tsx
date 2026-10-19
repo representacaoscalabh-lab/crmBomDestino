@@ -22,17 +22,19 @@ import { db } from "@/lib/firebase";
 import { useCrmStore } from "@/lib/store";
 import type { PaymentTerm } from "@/lib/types";
 import "./settings.css";
-import { MartMinasSettings } from "@/components/mart-minas-settings";
+import { NetworkCommissionSettings } from "@/components/network-commission-settings";
 
 import { SellerSettings } from "@/components/seller-settings";
+import { TeamAccessMembers } from "@/components/team-access-members";
 
 type AccessRequest = { id: string; uid: string; email: string; name: string; status: string };
-type SettingsSection = "access" | "payment-terms" | "mart-minas" | "sellers";
+type SettingsSection = "access" | "payment-terms" | "networks" | "sellers";
 
 export default function SettingsPage() {
   const { crmUser } = useAuth();
   const { paymentTerms, addPaymentTerm, updatePaymentTerm, deletePaymentTerm } = useCrmStore();
   const [section, setSection] = useState<SettingsSection>("access");
+  const [accessView, setAccessView] = useState<"members" | "requests">("members");
   const [paymentCode, setPaymentCode] = useState("");
   const [paymentDescription, setPaymentDescription] = useState("");
   const [editingTerm, setEditingTerm] = useState<PaymentTerm | null>(null);
@@ -148,25 +150,28 @@ export default function SettingsPage() {
       <p className="settings-menu-label">GERENCIAR</p>
       <nav className="settings-tabs" aria-label="Seções de configurações">
         <button type="button" className={section === "access" ? "settings-tab settings-tab-active" : "settings-tab"} onClick={() => setSection("access")} aria-current={section === "access" ? "page" : undefined}>
-          <UsersRound size={18} /><span className="settings-tab-copy"><strong>Acessos da equipe</strong><small>Revise novas solicitações</small></span><span className="settings-tab-count">{requests.length}</span>
+          <UsersRound size={18} /><span className="settings-tab-copy"><strong>Acessos da equipe</strong><small>Usuários, perfis e solicitações</small></span><span className="settings-tab-count">{requests.length}</span>
         </button>
         <button type="button" className={section === "payment-terms" ? "settings-tab settings-tab-active" : "settings-tab"} onClick={() => setSection("payment-terms")} aria-current={section === "payment-terms" ? "page" : undefined}>
           <CreditCard size={18} /><span className="settings-tab-copy"><strong>Condições de pagamento</strong><small>Prazos usados nos pedidos</small></span>
         </button>
-      <button type="button" className={section === "mart-minas" ? "settings-tab settings-tab-active" : "settings-tab"} onClick={() => setSection("mart-minas")} aria-current={section === "mart-minas" ? "page" : undefined}><span className="settings-tab-copy"><strong>Relatório Mart Minas</strong><small>Defina a rede do relatório</small></span></button>
+      <button type="button" className={section === "networks" ? "settings-tab settings-tab-active" : "settings-tab"} onClick={() => setSection("networks")} aria-current={section === "networks" ? "page" : undefined}><CreditCard size={18} /><span className="settings-tab-copy"><strong>Redes e comissões</strong><small>Nomes, relatórios e percentuais</small></span></button>
         <button type="button" className={section === "sellers" ? "settings-tab settings-tab-active" : "settings-tab"} onClick={() => setSection("sellers")} aria-current={section === "sellers" ? "page" : undefined}><UsersRound size={18} /><span className="settings-tab-copy"><strong>Vendedores</strong><small>Vendedores das redes</small></span></button>
       </nav>
       <div className="settings-account"><span className="settings-account-avatar"><UserRound size={18} /></span><div><strong>{crmUser.name || "Administrador"}</strong><small>{crmUser.email}</small></div><BadgeCheck size={16} /></div>
       </aside>
       <div className="settings-main">
 
-      {section === "sellers" ? <SellerSettings /> : section === "mart-minas" ? <MartMinasSettings /> : section === "access" ? (
+      {section === "sellers" ? <SellerSettings /> : section === "networks" ? <NetworkCommissionSettings /> : section === "access" ? (
         <section className="panel settings-section-panel">
           <div className="settings-section-heading">
             <span className="settings-section-icon"><UserRound size={19} /></span>
             <div><h2>Acessos da equipe</h2><p>Revise os dados e decida quem pode acessar o CRM.</p></div>
             <span className="request-count">{requests.length}</span>
           </div>
+          <div className="team-access-tabs" aria-label="Visualizar acessos"><button type="button" aria-pressed={accessView === "members"} onClick={() => setAccessView("members")}>Usuários cadastrados</button><button type="button" aria-pressed={accessView === "requests"} onClick={() => setAccessView("requests")}>Solicitações ({requests.length})</button></div>
+          {accessView === "members" && <TeamAccessMembers />}
+          <div hidden={accessView !== "requests"}>
           {requests.length ? (
             <div className="settings-request-list">
               {requests.map((request) => <article className="settings-request-card" key={request.id}>
@@ -181,7 +186,8 @@ export default function SettingsPage() {
               <span><CheckCircle2 size={28} /></span><strong>Todos os acessos em dia</strong><p>Novas solicitações aparecerão aqui para sua revisão.</p>
             </div>
           )}
-          <div className="settings-note"><ShieldCheck size={16} /><span>Somente administradores podem aprovar ou recusar novos acessos.</span></div>
+          </div>
+          <div className="settings-note"><ShieldCheck size={16} /><span>Somente administradores podem gerenciar usuários e permissões.</span></div>
         </section>
       ) : (
         <section className="panel settings-section-panel settings-terms-section">

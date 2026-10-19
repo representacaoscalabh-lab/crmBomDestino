@@ -208,6 +208,7 @@ test("página completa abre no primeiro mês sem acessar período anterior inexi
     "@/lib/mart-minas-settings": { useMartMinasSettings: () => ({ groupId: "g1", loading: false, error: "" }) },
     "@/lib/mart-minas-analytics": { ...exports, saoPauloToday: () => "2026-10-16" },
     "@/components/mart-minas-analysis": analysis,
+    "@/components/network-commission-report": { NetworkCommissionReport: () => null },
     "@/lib/mart-minas-export": {},
     "./report.css": {},
   };
@@ -216,4 +217,52 @@ test("página completa abre no primeiro mês sem acessar período anterior inexi
   assert.match(html, /Início do acompanhamento: outubro de 2026/);
   assert.match(html, /01\/10\/2026/);
   assert.doesNotMatch(html, /comparado a|NaN|undefined/);
+});
+
+test("relatorio OESA usa configuracao propria e permite rede ainda nao configurada", () => {
+  const sorting = loadModule("../src/components/sort-heading.tsx", nodeRequire);
+  const analysis = loadModule("../src/components/mart-minas-analysis.tsx", (id) => id === "@/lib/mart-minas-analytics" ? exports : id === "@/components/sort-heading" ? sorting : nodeRequire(id));
+  let selected = "oesa";
+  const oesaGroup = { ...group, id: "oesa", name: "Nova Safra" };
+  const mocks = {
+    "@/lib/auth": { useAuth: () => ({ crmUser: { role: "admin" } }) },
+    "@/lib/store": { useCrmStore: () => ({ customers: customers.map((customer) => ({ ...customer, groupId: "oesa" })), customerGroups: [group, oesaGroup], orders: [order("oesa-1", "c1", "2026-10-10", 50)], bonifications: [] }) },
+    "@/lib/oesa-nova-safra-settings": { useOesaNovaSafraSettings: () => ({ groupId: selected, loading: false, error: "" }) },
+    "@/lib/mart-minas-analytics": { ...exports, saoPauloToday: () => "2026-10-16" },
+    "@/components/mart-minas-analysis": analysis,
+    "@/components/network-commission-report": { NetworkCommissionReport: () => null },
+    "@/lib/oesa-nova-safra-export": {},
+    "../mart-minas/report.css": {},
+  };
+  const { default: Page } = loadModule("../src/app/relatorios/oesa-nova-safra/page.tsx", (id) => id in mocks ? mocks[id] : nodeRequire(id));
+  const html = renderToStaticMarkup(React.createElement(Page));
+  assert.match(html, /OESA - Nova Safra/);
+  assert.match(html, /Nova Safra/);
+  assert.match(html, /Comparativo por loja/);
+  assert.doesNotMatch(html, /NaN|undefined/);
+  selected = "";
+  const empty = renderToStaticMarkup(React.createElement(Page));
+  assert.match(empty, /Nenhuma rede configurada/);
+  assert.doesNotMatch(empty, /Comparativo por loja/);
+});
+
+test("secao de comissoes renderiza tabela, total e aviso de percentual ausente", () => {
+  const sorting = loadModule("../src/components/sort-heading.tsx", nodeRequire);
+  const commission = loadModule("../src/lib/network-commission.ts", nodeRequire);
+  const { NetworkCommissionReport } = loadModule("../src/components/network-commission-report.tsx", (id) => {
+    if (id === "@/components/sort-heading") return sorting;
+    if (id === "@/lib/network-commission") return commission;
+    if (id.endsWith(".css")) return {};
+    return nodeRequire(id);
+  });
+  const data = report([order("com-1", "c1", "2026-10-10", 50)]);
+  const render = (percent) => renderToStaticMarkup(React.createElement(NetworkCommissionReport, { group: { ...group, commissionPercent: percent }, report: data, scopeLabel: "Somente Representação WRRJ", status: "normal" }));
+  const html = render(5);
+  assert.match(html, /Comissão por loja/);
+  assert.match(html, /Nossa comissão geral/);
+  assert.match(html, /Exportar comissão XLS/);
+  assert.match(html, /Total após filtros/);
+  assert.doesNotMatch(html, /NaN|undefined/);
+  assert.match(render(undefined), /Comissão ainda não configurada/);
+  assert.doesNotMatch(render(0), /Comissão ainda não configurada/);
 });

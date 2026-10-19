@@ -28,6 +28,8 @@ import {
 import { useState, type ReactNode } from "react";
 import { useAuth } from "@/lib/auth";
 import { useCrmStore } from "@/lib/store";
+import { useMartMinasSettings } from "@/lib/mart-minas-settings";
+import { useOesaNovaSafraSettings } from "@/lib/oesa-nova-safra-settings";
 
 const navigation = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -40,14 +42,18 @@ const navigation = [
   { href: "/metas", label: "Metas", icon: Target },
 ];
 
-const reportLinks = [
+const defaultReportLinks = [
   { href: "/relatorios/mart-minas", label: "Mart Minas", icon: Network },
+  { href: "/relatorios/oesa-nova-safra", label: "OESA - Nova Safra", icon: Network },
   { href: "/relatorios", label: "Relatórios", icon: ClipboardList },
   { href: "/crescimento/clientes", label: "Crescimento de Clientes", icon: TrendingUp },
   { href: "/crescimento/produtos", label: "Crescimento de Produtos", icon: Package },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const martSettings = useMartMinasSettings();
+  const oesaSettings = useOesaNovaSafraSettings();
+  const reportLinks = defaultReportLinks.map((link) => ({ ...link, label: link.href === "/relatorios/mart-minas" ? martSettings.reportName || link.label : link.href === "/relatorios/oesa-nova-safra" ? oesaSettings.reportName || link.label : link.label }));
   const pathname = usePathname();
   const { signOutUser } = useAuth();
   const { dataError } = useCrmStore();

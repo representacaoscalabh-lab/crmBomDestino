@@ -48,3 +48,64 @@
 .customer-group-seller-row input, .customer-group-seller-row select { width: 100%; min-height: 38px; }
 .customer-group-seller-row > select { width: auto; }
 .customer-group-sellers > small { display: block; margin-top: 12px; }
+
+/* Network editor: a stable workspace with independent list scrolling. */
+.network-editor { width: min(1080px, 100%); height: min(800px, 92dvh); max-height: 92dvh; border-radius: 20px; }
+.network-editor .modal-heading { padding: 24px 28px; border-bottom: 1px solid var(--line); }
+.network-editor .modal-heading h2 { font-size: 24px; letter-spacing: -.6px; }
+.network-editor .modal-heading p:last-child { margin-bottom: 0; }
+.network-editor .customer-group-content { display: grid; grid-template-columns: 250px minmax(0, 1fr); flex: 1; padding: 0; overflow: hidden; }
+.network-editor .customer-group-picker { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 16px; padding: 24px 20px; border: 0; border-right: 1px solid var(--line); border-radius: 0; background: #f8fafc; }
+.network-editor .customer-group-picker label { flex: 0; gap: 10px; }
+.network-editor .customer-group-picker select { height: 44px; border-color: #dce2e9; }
+.network-editor .customer-group-picker .button { justify-content: center; align-self: stretch; background: transparent; }
+.network-editor form.network-editor-form { display: flex; min-width: 0; min-height: 0; padding: 24px 26px 0; overflow: hidden; }
+.network-editor .customer-group-name-field { margin-bottom: 20px; gap: 9px; }
+.network-editor .customer-group-name-field input { height: 46px; border-color: #dce2e9; font-size: 15px; }
+.network-editor-tabs { display: flex; flex-shrink: 0; gap: 24px; border-bottom: 1px solid var(--line); }
+.network-editor-tabs button { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 2px 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.network-editor-tabs button[aria-selected="true"] { border-bottom-color: var(--brand); color: var(--brand); }
+.network-editor-tabs button span { padding: 2px 7px; border-radius: 6px; background: #f4e9ec; color: var(--brand); font-size: 11px; }
+.network-editor-scroll { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; padding: 18px 0; margin: 0; border: 0; scrollbar-gutter: stable; }
+.network-editor [hidden] { display: none !important; }
+.network-selected-filter { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; color: var(--muted); font-size: 12px; cursor: pointer; }
+.network-selected-filter input { width: 15px; height: 15px; accent-color: var(--brand); }
+.network-editor .customer-group-select-heading { align-items: center; flex-direction: row; }
+.network-editor .customer-group-search { height: 44px; border-color: #dce2e9; background: #f8fafc; }
+.network-editor .customer-group-search input { font-size: 13px; }
+.network-editor .customer-group-members { max-height: none; overflow: visible; margin-top: 12px; border: 0; }
+.network-editor .customer-group-member { min-height: 72px; padding: 13px 12px; margin-bottom: 5px; border: 1px solid transparent; border-radius: 10px; transition: background .15s, border-color .15s; }
+.network-editor .customer-group-member:hover { background: #f8fafc; }
+.network-editor .customer-group-member:has(input:checked) { border-color: #ead3d9; background: #fbf5f7; }
+.network-editor .customer-group-member strong { font-size: 13px; }
+.network-editor .customer-group-member small { font-size: 11px; }
+.network-editor .customer-group-member em { max-width: 150px; font-size: 10px; line-height: 1.4; }
+.network-editor .customer-group-empty { padding: 48px 16px; background: #f8fafc; border-radius: 10px; }
+.network-editor .customer-group-sellers { margin: 0; padding: 0; border: 0; }
+.network-editor .customer-group-sellers > strong { font-size: 15px; }
+.network-editor .customer-group-sellers p { line-height: 1.65; }
+.network-editor .customer-group-seller-row { align-items: flex-start; padding: 16px 0; }
+.network-editor .customer-group-seller-row select { padding: 8px 10px; border: 1px solid #dce2e9; border-radius: 8px; background: #fff; color: #344054; font-size: 12px; }
+.network-editor .customer-group-footer { flex: 0 0 auto; flex-wrap: wrap; gap: 10px; margin-top: 0; padding: 18px 0; background: #fff; }
+.network-editor .customer-group-report-hint { font-size: 11px; }
+.network-editor .customer-group-footer .button { border-radius: 9px; }
+.network-editor .customer-group-footer > .button:last-child { margin-left: auto; }
+.network-editor .form-error { flex-shrink: 0; margin: 8px 0; }
+.network-editor button:focus-visible, .network-editor select:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+.dark-theme .network-editor .customer-group-picker, .dark-theme .network-editor .customer-group-search, .dark-theme .network-editor .customer-group-empty { background: #252a34; }
+.dark-theme .network-editor .customer-group-footer, .dark-theme .network-editor .customer-group-seller-row select { background: #202630; color: #eef0f4; }
+.dark-theme .network-editor .customer-group-member:hover, .dark-theme .network-editor .customer-group-member:has(input:checked) { background: #342a31; border-color: #62424b; }
+@media (max-width: 760px) {
+  .network-editor { height: 94dvh; max-height: 94dvh; border-radius: 16px; }
+  .network-editor .modal-heading { padding: 18px; }
+  .network-editor .customer-group-content { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .network-editor .customer-group-picker { flex-direction: row; align-items: end; gap: 10px; padding: 14px 18px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .network-editor .customer-group-picker label { flex: 1; min-width: 0; }
+  .network-editor .customer-group-picker .button { align-self: end; }
+  .network-editor form.network-editor-form { padding: 18px 18px 0; }
+  .network-editor .customer-group-select-heading { flex-wrap: wrap; }
+  .network-editor .customer-group-member { flex-wrap: wrap; }
+  .network-editor .customer-group-member em { max-width: none; padding-left: 27px; width: 100%; }
+  .network-editor .customer-group-report-hint { display: none; }
+  .network-editor .customer-group-footer .button { flex: 1; font-size: 12px; }
+}

@@ -1856,6 +1856,10 @@ tbody tr:hover { background: #fcfafb; }
 .order-image-import-modal .order-editor-heading { flex: 0 0 auto; }
 .order-image-import-modal .order-editor-heading > div:nth-child(2) { flex: 1; }
 .order-image-import-body { display: flex; min-height: 0; flex-direction: column; gap: 14px; overflow-y: auto; padding: 18px 22px; background: #f8f9fb; }
+.oesa-import-modal .order-image-import-body > * { flex-shrink: 0; }
+.oesa-import-summary { padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font-size: 13px; }
+.oesa-import-summary p { margin: 8px 0; line-height: 1.6; }
+.oesa-import-summary small { color: var(--muted); }
 .order-import-step { padding: 15px; border: 1px solid #e3e8ef; border-radius: 10px; background: #fff; }
 .order-import-step-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 13px; }
 .order-import-step-heading > span { display: grid; flex: 0 0 auto; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: #f8edef; color: var(--brand); font-size: 12px; font-weight: 750; }

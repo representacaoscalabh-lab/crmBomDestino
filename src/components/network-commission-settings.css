@@ -1,0 +1,21 @@
+.network-settings-list { display: grid; gap: 20px; padding: 4px 26px 24px; }
+.network-settings-card { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
+.network-settings-card > header { display: flex; align-items: center; gap: 12px; padding: 20px; border-bottom: 1px solid var(--line); }
+.network-settings-icon { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 11px; background: var(--brand-soft); color: var(--brand); }
+.network-settings-card header small { font-size: 9px; letter-spacing: 1.1px; color: var(--muted); }
+.network-settings-card h3 { margin: 4px 0 0; font-size: 16px; }
+.network-settings-badge { margin-left: auto; padding: 5px 9px; border-radius: 20px; background: var(--canvas); color: var(--muted); font-size: 10px; }
+.network-settings-badge.is-configured { color: #27745b; background: #e9f6ef; }
+.network-settings-card fieldset { border: 0; padding: 20px; margin: 0; min-width: 0; }
+.network-settings-card label { display: flex; flex-direction: column; gap: 8px; font-size: 12px; font-weight: 600; min-width: 0; }
+.network-settings-card select, .network-settings-card input { width: 100%; height: 43px; border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 400; }
+.network-settings-card label small { color: var(--muted); font-size: 11px; line-height: 1.5; font-weight: 400; }
+.network-settings-fields { display: grid; grid-template-columns: minmax(0, 2fr) minmax(120px, 1fr); gap: 18px; margin-top: 20px; }
+.network-percent-input { position: relative; }
+.network-percent-input input { padding-right: 32px; }
+.network-percent-input > span { position: absolute; right: 13px; top: 13px; color: var(--muted); }
+.network-settings-card > footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; background: var(--canvas); border-top: 1px solid var(--line); }
+.network-settings-card > footer > span { color: var(--muted); font-size: 11px; }
+.network-settings-card > .form-error, .network-settings-success { margin: 0 20px 16px; font-size: 12px; }
+.network-settings-success { color: #27745b; }
+@media (max-width: 700px) { .network-settings-list { padding: 0 14px 18px; }.network-settings-fields { grid-template-columns: 1fr; }.network-settings-card > header, .network-settings-card fieldset, .network-settings-card > footer { padding: 16px; }.network-settings-card > footer { flex-wrap: wrap; }.network-settings-card > footer button { width: 100%; justify-content: center; } }

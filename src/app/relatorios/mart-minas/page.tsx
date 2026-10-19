@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { NetworkCommissionReport } from "@/components/network-commission-report";
 import { useMemo, useRef, useState } from "react";
 import { Download, Network } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -14,7 +15,7 @@ import "./report.css";
 export default function MartMinasReportPage() {
   const { crmUser } = useAuth();
   const { customers, customerGroups, orders, bonifications } = useCrmStore();
-  const { groupId, loading, error } = useMartMinasSettings();
+  const { groupId, reportName, loading, error } = useMartMinasSettings();
   const today = saoPauloToday();
   const [month, setMonth] = useState(() => today.slice(0, 7));
   const [start, setStart] = useState("");
@@ -42,7 +43,7 @@ export default function MartMinasReportPage() {
     finally { setExporting(false); }
   }
   return <div className="page-content mart-report">
-    <header className="mart-report-heading"><div><p className="eyebrow">ACOMPANHAMENTO COMERCIAL</p><h1>Mart Minas</h1><p>{group ? `${group.name} · Lojas e produtos` : "Acompanhe o resultado da rede."}</p></div><Network size={30} /></header>
+    <header className="mart-report-heading"><div><p className="eyebrow">ACOMPANHAMENTO COMERCIAL</p><h1>{reportName || "Mart Minas"}</h1><p>{group ? `${group.name} · Lojas e produtos` : "Acompanhe o resultado da rede."}</p></div><Network size={30} /></header>
     {loading ? <div className="panel page-empty" role="status">Carregando configuração do relatório...</div> : error ? <p className="form-error" role="alert">{error}</p> : !group ? <div className="panel page-empty"><strong>{groupId ? "A rede configurada não está mais disponível" : "Nenhuma rede configurada"}</strong><p>Um administrador precisa escolher a rede nas Configurações.</p>{crmUser?.role === "admin" && <Link className="button button-primary" href="/configuracoes">Abrir Configurações</Link>}</div> : <>
       <section className="panel mart-report-filters" aria-label="Filtros do relatório">
         <label>Mês de referência<input type="month" min={MART_MINAS_START.slice(0, 7)} max={today.slice(0, 7)} value={month} onChange={(event) => { setMonth(event.target.value); setStart(""); setEnd(""); }} /></label>
@@ -74,6 +75,7 @@ export default function MartMinasReportPage() {
         <div className="mart-period-banner"><strong>{scopeLabel} · {report.custom ? "Período personalizado" : monthLabel(month)} {report.custom ? `· ${report.duration} dias` : report.cutoff ? "· mês em andamento" : "· mês completo"}</strong><span>{dateLabel(report.currentPeriod.start)} a {dateLabel(report.currentPeriod.end)}{previousPeriod && <> · comparado a {dateLabel(previousPeriod.start)} a {dateLabel(previousPeriod.end)}</>}</span></div>
         {report.historyCoverage.some((period) => !period.hasOrders) && <p className="mart-data-note" role="status">Sem registros na comparação: {report.historyCoverage.filter((period) => !period.hasOrders).map((period) => report.custom ? `${dateLabel(period.start)} a ${dateLabel(period.end)}` : monthLabel(period.month)).join(", ")}. Confira as importações; a média inclui zeros.</p>}
         {!report.hasPrevious && <p className="mart-data-note">Início do acompanhamento: outubro de 2026. As comparações aparecerão conforme o histórico for formado.</p>}
+        <NetworkCommissionReport key={group.id} group={group} report={report} scopeLabel={scopeLabel} status={status} />
         <MartMinasAnalysis key={`${group.id}-${month}-${scope}-${status}-${historyMonths}-${start}-${end}`} report={report} />
         <section className="panel mart-report-section"><div className="mart-section-heading"><div><h2>Bonificações · {scopeLabel}</h2></div></div><div className="mart-detail-stats"><span>Registros: <strong>{report.bonus.count}</strong></span><span>Peso: <strong>{number(report.bonus.weight)} kg</strong></span><span>Valor de referência: <strong>{money(report.bonus.revenue)}</strong></span><span>Kg bonificados / kg comprados: <strong>{status === "normal" && report.current.weight > 0 ? `${number(report.bonus.weight / report.current.weight * 100)}%` : "—"}</strong></span></div>
           <details className="mart-record-details"><summary>Ver bonificações ({report.bonifications.length})</summary><div className="mart-report-table"><table><thead><tr><th>Controle</th><th>Emissão</th><th>Loja</th><th>Responsável</th><th>Motivo</th><th>Peso</th><th>Valor de referência</th></tr></thead><tbody>{report.bonifications.map((bonus) => <tr key={bonus.id}><td>{bonus.bonusNumber}</td><td>{dateLabel(bonus.issueDate)}</td><td>{bonus.customerName}<small>Loja {bonus.store || "—"}</small></td><td>{group.externalStoreSellers?.[bonus.customerId] || "Representação WRRJ"}</td><td>{bonus.reason}</td><td>{number(bonus.totalWeight)} kg</td><td>{money(bonus.totalValue)}</td></tr>)}</tbody></table></div></details>

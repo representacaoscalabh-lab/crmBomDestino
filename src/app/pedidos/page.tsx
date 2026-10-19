@@ -1,6 +1,8 @@
 "use client";
 
 import { ImportIssues } from "@/components/import-issues";
+import { OesaImportModal } from "@/components/oesa-import-modal";
+import { OesaScreenshotsModal } from "@/components/oesa-screenshots-modal";
 
 import { useTableSort } from "@/components/sort-heading";
 import { importFailureMessage } from "@/lib/import-validation";
@@ -142,6 +144,8 @@ export default function OrdersPage() {
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [filters, setFilters] = useState({ search: "", customerName: "", city: "", segment: "", network: "", start: defaultDateRange.start, end: defaultDateRange.end });
   const [showNetworkImportModal, setShowNetworkImportModal] = useState(false);
+  const [showOesaImportModal, setShowOesaImportModal] = useState(false);
+  const [showOesaPrints, setShowOesaPrints] = useState(false);
   const [networkPdf, setNetworkPdf] = useState<File | null>(null);
   const [networkProgress, setNetworkProgress] = useState(0);
   const [networkError, setNetworkError] = useState("");
@@ -534,6 +538,8 @@ export default function OrdersPage() {
             <button className="orders-refresh-button" onClick={() => void refreshOrders()} disabled={refreshing} title={refreshing ? "Atualizando pedidos" : "Atualizar pedidos"} aria-label={refreshing ? "Atualizando pedidos" : "Atualizar pedidos"}><RefreshCw size={14} className={refreshing ? "spin" : ""} /></button>
           </div>
           <button className="button button-outline orders-import-button" onClick={startNetworkImport}><FileText size={15} /> Importar PDF Mart Minas</button>
+          <button className="button button-outline orders-import-button" onClick={() => setShowOesaImportModal(true)}><FileText size={15} /> Importar PDF OESA</button>
+          <button className="button button-outline orders-import-button" onClick={() => setShowOesaPrints(true)}><Upload size={15} /> Importar por print</button>
           <button className="button button-primary orders-new-button" onClick={openCreateOrder}><Plus size={16} /> Novo pedido</button>
         </div>
       </div>
@@ -570,6 +576,8 @@ export default function OrdersPage() {
       })}</tbody></table></div> : <div className="page-empty"><span className="page-empty-icon"><ShoppingCart size={23} /></span><strong>Nenhum pedido encontrado</strong><p>{orders.length ? "Ajuste os filtros aplicados ou cadastre um novo pedido." : products.length ? "Cadastre ou importe pedidos para acompanhar as vendas por aqui." : "Cadastre produtos primeiro para lançar pedidos."}</p>{orders.length === 0 && (products.length ? <button className="button button-primary" onClick={openCreateOrder}><Plus size={16} /> Criar primeiro pedido</button> : <a href="/produtos" className="button button-outline"><PackageCheck size={16} /> Cadastrar produtos</a>)}</div>}
     </section>
 
+    {showOesaImportModal && <OesaImportModal onClose={() => setShowOesaImportModal(false)} />}
+    {showOesaPrints && <OesaScreenshotsModal onClose={() => setShowOesaPrints(false)} />}
     {showNetworkImportModal && <div className="modal-backdrop order-image-import-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !networkImporting) setShowNetworkImportModal(false); }}>
       <section className="modal-card order-image-import-modal network-order-import-modal" role="dialog" aria-modal="true" aria-labelledby="network-order-import-title">
         <div className="order-editor-heading">

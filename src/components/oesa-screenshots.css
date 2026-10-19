@@ -1,0 +1,29 @@
+.oesa-prints-modal { width: min(1100px, 100%); }
+.oesa-prints-modal .order-editor-heading > div:first-child { flex: 1; }
+.oesa-price-review { display: flex; flex-direction: column; gap: 5px; min-width: 220px; max-width: 320px; padding: 10px; margin-top: 10px; border-left: 3px solid #c77c26; background: #fff4df; color: #744911; font-size: 11px; white-space: normal; }
+.oesa-accept-alert { display: flex; align-items: flex-start; gap: 8px; margin-top: 8px; cursor: pointer; font-weight: 600; }
+.oesa-prints-modal .oesa-accept-alert input { flex: 0 0 auto; width: 16px; height: 16px; margin: 0; accent-color: var(--brand); }
+.oesa-pair-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.oesa-print-pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.oesa-print-slot { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.oesa-print-slot header { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+.oesa-print-slot header strong { display: block; font-size: 13px; }
+.oesa-print-slot header small { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
+.oesa-print-number { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; background: var(--brand-soft); color: var(--brand); font-weight: 700; }
+.oesa-print-slot img { display: block; width: 100%; height: 360px; object-fit: contain; object-position: top; background: #edf0f3; border-radius: 6px; }
+.oesa-print-placeholder { display: flex; flex-direction: column; gap: 12px; justify-content: center; align-items: center; height: 240px; color: var(--muted); background: var(--canvas); border-radius: 6px; font-size: 12px; }
+.oesa-print-upload { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; font-size: 12px; font-weight: 600; }
+.oesa-print-upload input { max-width: 100%; font-size: 11px; }
+.oesa-print-file { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+@media (max-width: 600px) { .oesa-print-pair { gap: 8px; } .oesa-print-slot { padding: 8px; } .oesa-print-slot img { height: 230px; } .oesa-print-slot header { flex-wrap: wrap; } }
+.oesa-prints-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; border: 0; margin: 0; padding: 0; min-width: 0; }
+.oesa-prints-fields label { display: flex; flex-direction: column; gap: 7px; font-size: 12px; font-weight: 600; }
+.oesa-prints-fields input, .oesa-prints-fields select { width: 100%; min-width: 0; padding: 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
+.oesa-prints-wide { grid-column: 1 / -1; }
+.oesa-prints-fields small, .oesa-prints-help { color: var(--muted); font-size: 12px; line-height: 1.6; font-weight: 400; }
+.oesa-prints-files { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.oesa-prints-files li { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; }
+.oesa-prints-modal td input { width: 95px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); }
+.oesa-prints-modal td small { display: block; min-width: 200px; margin-top: 5px; }
+.oesa-prints-raw { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 11px; }
+@media (max-width: 600px) { .oesa-prints-fields { grid-template-columns: 1fr; } }

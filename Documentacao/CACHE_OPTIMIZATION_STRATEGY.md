@@ -1,3 +1,5 @@
+﻿> Referência histórica — versão anterior ou proposta de evolução. Este arquivo não comprova o estado atual nem a publicação no Firebase. Consulte o [índice atual](README.md), a [arquitetura](TECHNICAL.md) e o [guia de ativação](../docs/ativacao-reducao-leituras-firebase.md). Marcado em 21/10/2026.
+
 # 📊 Estratégia de Otimização de Cache - Redução de Leituras Firestore
 
 ## 🎯 Problema Atual
@@ -325,3 +327,4 @@ useEffect(() => {
 3. **Quer validação de quantas vezes cada fetch é chamado?**
 
 Recomendo começar pela **Fase 1** (Cache Context) que é a base que tudo depende.
+

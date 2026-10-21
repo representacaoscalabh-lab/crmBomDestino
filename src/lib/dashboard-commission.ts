@@ -23,9 +23,7 @@ export function buildDashboardCommission(customers: Customer[], groups: Customer
     const base = Math.round(entry.base * 100);
     row.baseCents += base; row.stores++; row.orders += entry.orders;
     if (row.percent !== null) row.commissionCents += Math.round(base * row.percent / 100);
-    const group = byGroup.get(entry.groupId);
-    const sellerCommission = calculateSellerCommission(base / 100, row.percent === null ? 0 : Math.round(base * row.percent / 100) / 100, group?.sellerCommissionPercent, group?.sellerCommissionBase ?? "orders");
-    if (sellerCommission !== null) sellerCents.set(row.id, (sellerCents.get(row.id) ?? 0) + Math.round(sellerCommission * 100));
+
   }
   if (ungrouped.orders) rows.push(ungrouped);
   const visible = rows.filter((row) => row.orders > 0 || row.percent !== null || byGroup.get(row.id)?.sellerCommissionPercent !== undefined).map((row) => {
@@ -37,9 +35,35 @@ export function buildDashboardCommission(customers: Customer[], groups: Customer
     rows: visible,
     commission: rows.reduce((sum, row) => sum + row.commissionCents, 0) / 100,
     sellerCommission: [...sellerCents.values()].reduce((sum, value) => sum + value, 0) / 100,
-    pendingSellerStores: visible.filter((row) => row.sellerPercent === null).reduce((sum, row) => sum + row.stores, 0),
+    pendingSellerStores: 0,
     coveredBase: rows.filter((row) => row.percent !== null).reduce((sum, row) => sum + row.baseCents, 0) / 100,
     uncoveredBase: rows.filter((row) => row.percent === null).reduce((sum, row) => sum + row.baseCents, 0) / 100,
     pendingStores: rows.filter((row) => row.percent === null).reduce((sum, row) => sum + row.stores, 0),
   };
+}
+
+/** Consolidated network summary, including stores assigned to Sul de Minas. */
+export function buildNetworkDashboardCommission(customers: Customer[], group: CustomerGroup | undefined, orders: Order[]) {
+  const stores = new Map(customers.filter(customer => customer.groupId === group?.id).map(customer => [customer.id, { customer, baseCents: 0, orders: 0 }]));
+  for (const order of orders) {
+    const store = stores.get(order.customerId);
+    if (!store || order.status !== "normal") continue;
+    store.baseCents += Math.round(order.totalValue * 100);
+    store.orders += order.recordCount ?? 1;
+  }
+  const percent = group?.commissionPercent;
+  const configured = typeof percent === "number" && Number.isFinite(percent) && percent >= 0 && percent <= 100;
+  let commissionCents = 0, sellerCents = 0, pendingStores = 0, baseCents = 0, orderCount = 0, storeCount = 0;
+  for (const store of stores.values()) {
+    if (!store.orders) continue;
+    baseCents += store.baseCents; orderCount += store.orders; storeCount++;
+    if (!configured) { pendingStores++; continue; }
+    const representation = Math.round(store.baseCents * percent / 100);
+    if (group?.externalStoreSellers?.[store.customer.id]?.trim()) {
+      const seller = calculateSellerCommission(store.baseCents / 100, representation / 100, group.sellerCommissionPercent, group.sellerCommissionBase ?? "orders");
+      if (seller === null) pendingStores++;
+      else sellerCents += Math.round(seller * 100);
+    } else commissionCents += representation;
+  }
+  return { configured, percent, commission: commissionCents / 100, sellerCommission: sellerCents / 100, total: (commissionCents + sellerCents) / 100, pendingStores, base: baseCents / 100, orders: orderCount, stores: storeCount };
 }

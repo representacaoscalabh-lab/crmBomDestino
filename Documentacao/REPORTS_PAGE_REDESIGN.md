@@ -1,3 +1,5 @@
+﻿> Referência histórica — versão anterior ou proposta de evolução. Este arquivo não comprova o estado atual nem a publicação no Firebase. Consulte o [índice atual](README.md), a [arquitetura](TECHNICAL.md) e o [guia de ativação](../docs/ativacao-reducao-leituras-firebase.md). Marcado em 21/10/2026.
+
 # 📊 Relatórios - Redesign Front-end Completo
 
 ## ✨ Melhorias Implementadas
@@ -211,3 +213,4 @@ A página de relatórios agora é:
 - ✅ **Legível** - Tabela com excelente espaçamento
 - ✅ **Responsiva** - Funciona em todos os dispositivos
 - ✅ **Acessível** - Ícones, cores e contraste adequado
+

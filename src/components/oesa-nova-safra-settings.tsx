@@ -36,6 +36,6 @@ export function OesaNovaSafraSettings() {
       <button className="button button-primary" disabled={loading || !!error || saving}>{saving ? "Salvando..." : "Salvar rede"}</button>
     </form>
     {(message || error) && <p role="status">{error || message}</p>}
-    <p className="settings-note">O relatório separa Representação WRRJ, outros vendedores e o consolidado, conforme o cadastro atual das lojas na rede.</p>
+    <p className="settings-note">O relatório separa Representação WRRJ, Sul de Minas e o consolidado, conforme o cadastro atual das lojas na rede.</p>
   </section>;
 }

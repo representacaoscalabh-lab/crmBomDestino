@@ -15,6 +15,25 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    function customerMigration() {
+      return exists(/databases/$(database)/documents/settings/read_optimization)
+        && get(/databases/$(database)/documents/settings/read_optimization).data.get('customerMigration', false) == true;
+    }
+
+    function customerReservations() {
+      return exists(/databases/$(database)/documents/settings/read_optimization)
+        && get(/databases/$(database)/documents/settings/read_optimization).data.get('customerReservations', false) == true;
+    }
+
+    function validCustomerReservation(customerId) {
+      let normalized = request.resource.data.get('documentNormalized', '');
+      let raw = request.resource.data.get('document', '');
+      return normalized is string && raw is string
+        && normalized == raw.replace('[^0-9]', '')
+        && (normalized == '' || (normalized.matches('^[0-9]{14}$')
+          && getAfter(/databases/$(database)/documents/customer_documents/$(normalized)).data.customerId == customerId));
+    }
+
     match /users/{userId} {
       allow read: if signedIn() && (request.auth.uid == userId || admin());
       allow create: if signedIn()
@@ -37,7 +56,41 @@ service cloud.firestore {
     }
 
     match /customers/{customerId} {
-      allow read, create, update, delete: if approved();
+      allow read: if approved();
+      allow create, update: if approved() && !customerMigration()
+        && (!customerReservations() || validCustomerReservation(customerId));
+      allow delete: if approved() && !customerMigration()
+        && (!customerReservations() || resource.data.get('documentNormalized', '') == ''
+          || !existsAfter(/databases/$(database)/documents/customer_documents/$(resource.data.documentNormalized)));
+    }
+
+    match /customer_documents/{normalized} {
+      allow read: if approved();
+      allow create, update: if approved() && !customerMigration()
+        && normalized.matches('^[0-9]{14}$')
+        && request.resource.data.keys().hasOnly(['customerId'])
+        && request.resource.data.customerId is string
+        && (!exists(/databases/$(database)/documents/customer_documents/$(normalized))
+          || resource.data.customerId == request.resource.data.customerId)
+        && getAfter(/databases/$(database)/documents/customers/$(request.resource.data.customerId)).data.documentNormalized == normalized;
+      allow delete: if approved() && !customerMigration()
+        && (!existsAfter(/databases/$(database)/documents/customers/$(resource.data.customerId))
+          || getAfter(/databases/$(database)/documents/customers/$(resource.data.customerId)).data.get('documentNormalized', '') != normalized);
+    }
+
+    match /settings/read_optimization {
+      allow read: if approved();
+      allow write: if admin();
+    }
+
+    match /daily_orders/{id} {
+      allow read: if approved();
+      allow write: if false;
+    }
+
+    match /daily_bonifications/{id} {
+      allow read: if approved();
+      allow write: if false;
     }
 
     match /customer_groups/{groupId} {
@@ -49,7 +102,8 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      allow read, create, update, delete: if approved();
+      allow read, delete: if approved();
+      allow create, update: if approved() && request.resource.data.status == "normal";
     }
 
     match /bonifications/{bonificationId} {

@@ -17,7 +17,7 @@ export function useTableSort<T>(rows: T[]) {
   }, [rows, sort]);
   function heading(key: string, label: string, value: (row: T) => SortValue) {
     const active = sort?.key === key;
-    return <th aria-sort={active ? sort.direction === "asc" ? "ascending" : "descending" : "none"}><button className="sort-heading" onClick={() => setSort({ key, value, direction: active && sort.direction === "asc" ? "desc" : "asc" })}>{label}{active ? sort.direction === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} /> : <ChevronsUpDown size={14} />}</button></th>;
+    return <th key={key} aria-sort={active ? sort.direction === "asc" ? "ascending" : "descending" : "none"}><button className="sort-heading" onClick={() => setSort({ key, value, direction: active && sort.direction === "asc" ? "desc" : "asc" })}>{label}{active ? sort.direction === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} /> : <ChevronsUpDown size={14} />}</button></th>;
   }
   return { sorted, heading };
 }

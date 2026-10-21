@@ -156,7 +156,7 @@ export default function SettingsPage() {
           <CreditCard size={18} /><span className="settings-tab-copy"><strong>Condições de pagamento</strong><small>Prazos usados nos pedidos</small></span>
         </button>
       <button type="button" className={section === "networks" ? "settings-tab settings-tab-active" : "settings-tab"} onClick={() => setSection("networks")} aria-current={section === "networks" ? "page" : undefined}><CreditCard size={18} /><span className="settings-tab-copy"><strong>Redes e comissões</strong><small>Nomes, relatórios e percentuais</small></span></button>
-        <button type="button" className={section === "sellers" ? "settings-tab settings-tab-active" : "settings-tab"} onClick={() => setSection("sellers")} aria-current={section === "sellers" ? "page" : undefined}><UsersRound size={18} /><span className="settings-tab-copy"><strong>Vendedores</strong><small>Vendedores das redes</small></span></button>
+        <button type="button" className={section === "sellers" ? "settings-tab settings-tab-active" : "settings-tab"} onClick={() => setSection("sellers")} aria-current={section === "sellers" ? "page" : undefined}><UsersRound size={18} /><span className="settings-tab-copy"><strong>Responsáveis</strong><small>WRRJ e Sul de Minas</small></span></button>
       </nav>
       <div className="settings-account"><span className="settings-account-avatar"><UserRound size={18} /></span><div><strong>{crmUser.name || "Administrador"}</strong><small>{crmUser.email}</small></div><BadgeCheck size={16} /></div>
       </aside>

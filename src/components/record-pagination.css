@@ -1,0 +1,7 @@
+.record-pagination { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; padding: 16px 22px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.record-pagination label, .record-pagination > div { display: flex; align-items: center; gap: 9px; }
+.record-pagination select, .record-pagination button { min-height: 36px; padding: 7px 11px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); font-size: 12px; }
+.record-pagination button { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.record-pagination button:disabled { opacity: .45; cursor: default; }
+.record-pagination button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+@media(max-width: 520px) { .record-pagination { padding: 14px; }.record-pagination > div { width: 100%; justify-content: space-between; } }

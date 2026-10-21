@@ -1,0 +1,177 @@
+.mart-commission-page { height: calc(100dvh - 102px); min-height: 840px; display: flex; flex-direction: column; gap: 18px; padding: 22px; }
+.mart-commission-page > .mart-report-heading { flex: none; margin: 0; padding: 18px 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.mart-commission-page .mart-report-heading h1 { font-size: 24px; margin: 4px 0; }
+.mart-commission-page .mart-report-heading p { margin: 0; font-size: 14px; }
+.mart-commission-workspace { display: grid; grid-template-columns: 252px minmax(0, 1fr); gap: 18px; flex: 1; min-height: 640px; }
+.mart-workspace-sidebar { display: flex; flex-direction: column; gap: 14px; overflow-y: auto; min-height: 0; padding: 1px; }
+.mart-workspace-sidebar .panel { padding: 16px; flex-shrink: 0; }
+.mart-workspace-sidebar h2 { margin: 0 0 14px; font-size: 15px; }
+.mart-workspace-period, .mart-workspace-sidebar .commission-filters { display: grid; gap: 14px; margin: 0; }
+.mart-workspace-period label, .mart-workspace-sidebar .commission-filters > label { display: grid; gap: 7px; font-size: 14px; font-weight: 500; }
+.mart-workspace-period input, .mart-workspace-period select, .mart-workspace-sidebar .commission-filters input, .mart-workspace-sidebar .commission-filters select { width: 100%; min-width: 0; height: 42px; padding: 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); font-size: 14px; }
+.mart-workspace-sidebar .commission-filters { padding-top: 18px; margin-top: 18px; border-top: 1px solid var(--line); }
+.mart-workspace-sidebar .commission-filters > .commission-search { display: flex; width: 100%; height: 42px; box-sizing: border-box; }
+.mart-workspace-sidebar .commission-search input { border: 0; padding: 0; }
+.mart-commission-workspace > .commission-report { display: flex; flex-direction: column; min-height: 0; margin: 0; padding: 0; }
+.mart-commission-workspace .mart-section-heading { flex: none; padding: 16px 20px; gap: 12px; }
+.mart-commission-workspace .mart-section-heading h2 { padding: 0; font-size: 20px; margin: 4px 0; }
+.mart-commission-workspace .mart-section-heading .eyebrow { display: none; }
+.mart-commission-workspace .commission-stats { flex: none; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 16px; border-bottom: 1px solid var(--line); }
+.mart-commission-workspace .commission-stats > div { padding: 13px; }
+.mart-commission-workspace .commission-stats span { font-size: 13px; line-height: 1.4; }
+.mart-commission-workspace .commission-stats strong { font-size: 21px; }
+.mart-commission-workspace .commission-note { flex: none; padding: 12px 18px; margin: 0; font-size: 13px; line-height: 1.5; }
+.mart-commission-workspace .mart-report-table { flex: 1 0 300px; overflow: auto; min-height: 300px; border-top: 1px solid var(--line); }
+.mart-commission-workspace .mart-report-table table { min-width: 1250px; }
+.mart-commission-workspace .mart-report-table th, .mart-commission-workspace .mart-report-table td { padding: 15px 16px; font-size: 14px; }
+.mart-commission-workspace .mart-report-table thead { position: sticky; top: 0; z-index: 2; background: var(--surface); box-shadow: 0 1px var(--line); }
+.mart-commission-workspace .mart-report-table tfoot { position: sticky; bottom: 0; background: var(--surface); box-shadow: 0 -1px var(--line); }
+.mart-commission-workspace .commission-empty { padding: 24px; }
+@media (max-width: 1200px) { .mart-commission-workspace { grid-template-columns: 224px minmax(0, 1fr); gap: 12px; } .mart-commission-workspace .commission-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .mart-commission-page { height: auto; min-height: 0; padding: 16px; } .mart-commission-workspace { grid-template-columns: minmax(0, 1fr); min-height: 0; } .mart-workspace-sidebar { overflow: visible; } .mart-workspace-period { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mart-commission-workspace .mart-report-table { max-height: 65dvh; flex: auto; } }
+
+/* Unified overview and store report. */
+.mart-commission-workspace > .commission-report { border-radius: 14px; box-shadow: 0 3px 18px color-mix(in srgb, var(--ink) 4%, transparent); }
+.mart-workspace-filter-panel { border-radius: 14px; }
+.mart-workspace-filter-panel h2 { padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.mart-commission-workspace .mart-section-heading { padding: 20px 22px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.commission-overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 18px; flex-shrink: 0; background: color-mix(in srgb, var(--ink) 2%, var(--surface)); }
+.commission-overview-card { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.commission-card-label { font-size: 14px; font-weight: 600; color: var(--mart-muted); }
+.commission-card-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.commission-overview-card > strong { font-size: clamp(22px, 1.8vw, 30px); letter-spacing: -.6px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.commission-card-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--mart-muted); }
+.commission-overview-card > small { padding-top: 12px; margin-top: auto; border-top: 1px solid var(--line); font-size: 12px; color: var(--mart-muted); line-height: 1.5; }
+.commission-overview-ours { border-top: 3px solid var(--brand); }
+.commission-overview-ours > strong { color: var(--brand); }
+.commission-overview-seller { border-top: 3px solid #168477; }
+.commission-rate { padding: 4px 9px; border-radius: 20px; background: var(--brand-soft); color: var(--brand); font-size: 13px; font-weight: 700; white-space: nowrap; }
+.commission-overview-seller .commission-rate { background: color-mix(in srgb, #168477 12%, var(--surface)); color: #168477; }
+.commission-table-intro { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 20px; }
+.commission-table-intro h3 { margin: 0 0 5px; font-size: 16px; }
+.commission-table-intro span { color: var(--mart-muted); font-size: 13px; }
+.commission-table-intro .commission-rule { padding: 6px 10px; border: 1px solid var(--line); border-radius: 20px; font-size: 12px; white-space: nowrap; }
+.mart-commission-workspace .mart-report-table tbody tr:hover { background: color-mix(in srgb, var(--brand) 4%, var(--surface)); }
+.mart-commission-workspace .mart-report-table td:nth-child(n+6) { font-variant-numeric: tabular-nums; }
+.mart-commission-workspace .mart-report-table thead th { background: color-mix(in srgb, var(--ink) 3%, var(--surface)); }
+@media (max-width: 1100px) { .commission-overview { gap: 8px; padding: 12px; } .commission-overview-card { padding: 12px; } .commission-card-label { font-size: 13px; } .commission-overview-card > strong { font-size: 22px; } .commission-table-intro .commission-rule { display: none; } }
+@media (max-width: 760px) { .commission-overview { grid-template-columns: minmax(0, 1fr); } .commission-overview-card > strong { font-size: 26px; } }
+.mart-responsible-field { display: grid; gap: 8px; min-width: 0; }
+.mart-responsible-field > span { font-size: 14px; font-weight: 500; }
+.mart-scope-scroll { overflow: hidden; border-radius: 10px; scrollbar-width: thin; }
+.mart-scope-bar { position: relative; isolation: isolate; display: grid; min-width: 0; width: 100%; padding: 4px; box-sizing: border-box; border-radius: 10px; background: color-mix(in srgb, var(--ink) 6%, var(--surface)); }
+.mart-scope-bar > button { position: relative; z-index: 1; padding: 10px 7px; min-height: 44px; border: 0; border-radius: 7px; background: transparent; color: var(--mart-muted); font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer; transition: color 250ms ease; }
+.mart-scope-bar > button[aria-pressed="true"] { color: var(--brand); font-weight: 700; }
+.mart-scope-bar > button:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.mart-scope-indicator { position: absolute; z-index: 0; left: 4px; top: 4px; bottom: 4px; border-radius: 7px; background: var(--surface); box-shadow: 0 2px 6px color-mix(in srgb, var(--ink) 12%, transparent); transition: transform 300ms cubic-bezier(.22, 1, .36, 1), width 300ms ease; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .mart-scope-indicator, .mart-scope-bar > button { transition: none; } .mart-scope-scroll { scroll-behavior: auto; } }
+.mart-scope-bar > button + button::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 1px; background: color-mix(in srgb, var(--ink) 22%, var(--surface)); pointer-events: none; }
+.mart-scope-bar { gap: 0; }
+.mart-scope-bar > button { border: 1px solid color-mix(in srgb, var(--ink) 22%, var(--surface)); border-radius: 0; padding-inline: 4px; }
+.mart-scope-bar > button + button { border-left: 0; }
+.mart-scope-bar > button:first-of-type { border-radius: 7px 0 0 7px; }
+.mart-scope-bar > button:last-of-type { border-radius: 0 7px 7px 0; }
+.mart-scope-bar > button + button::before { display: none; }
+.mart-scope-bar > button[aria-pressed="true"] { color: #fff; }
+.mart-scope-indicator { border-radius: 0; background: #9f2944; box-shadow: none; }
+.mart-scope-bar:has(> button:first-of-type[aria-pressed="true"]) .mart-scope-indicator { border-radius: 7px 0 0 7px; }
+.mart-scope-bar:has(> button:last-of-type[aria-pressed="true"]) .mart-scope-indicator { border-radius: 0 7px 7px 0; }
+.mart-report-options { display: grid; gap: 6px; margin-bottom: 18px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.mart-report-options button { text-align: left; background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 12px; font: inherit; color: var(--ink); cursor: pointer; }
+.mart-report-options button[aria-pressed="true"] { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); font-weight: 600; }
+.growth-method { flex-shrink: 0; padding: 16px 20px; background: var(--canvas); font-size: 14px; line-height: 1.6; border-bottom: 1px solid var(--line); }
+.growth-legend { display: flex; flex-wrap: wrap; gap: 12px; }
+.growth-badge { display: inline-block; border-radius: 20px; padding: 6px 10px; font-weight: 700; font-size: 14px; }
+.growth-badge.growth-up { background: #e3f4e9; color: #176b38; }
+.growth-badge.growth-down { background: #fde8e9; color: #af2432; }
+.growth-badge.growth-flat { background: #fff2ca; color: #795a05; }
+.growth-legend .growth-up { color: #176b38; }
+.growth-legend .growth-down { color: #af2432; }
+.growth-legend .growth-flat { color: #795a05; }
+.mart-commission-workspace .commission-horizontal-scroll { flex: 0 0 20px; min-height: 20px; overflow-x: scroll; overflow-y: hidden; border-top: 1px solid var(--line); background: var(--surface); scrollbar-color: #929292 var(--canvas); }
+.mart-commission-workspace .commission-horizontal-scroll::-webkit-scrollbar { height: 14px; }
+.mart-commission-workspace .commission-horizontal-scroll::-webkit-scrollbar-thumb { border: 3px solid var(--surface); border-radius: 10px; background: #929292; }
+.mart-commission-workspace:has(.commission-horizontal-scroll) .mart-report-table { flex: 1 1 0; min-height: 280px; }
+.growth-badge.growth-none { background: var(--canvas); color: var(--mart-muted); }
+.growth-comparison-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; flex-shrink: 0; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.growth-comparison-controls > div:first-child { flex: 1 1 200px; }
+.growth-comparison-controls strong { font-size: 14px; }
+.growth-comparison-controls small { display: block; margin-top: 6px; font-size: 13px; color: var(--mart-muted); }
+.growth-comparison-slots { display: flex; flex-wrap: wrap; gap: 10px; }
+.growth-comparison-slots label { display: grid; gap: 6px; font-size: 13px; }
+.growth-comparison-slots select { min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; }
+
+/* Keep both report viewports bounded, with a dedicated bottom scrollbar. */
+.mart-commission-workspace { min-width: 0; max-width: 100%; }
+.mart-commission-workspace > .commission-report { min-width: 0; max-width: 100%; overflow: hidden; }
+.mart-commission-workspace .mart-report-table { width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; overflow-x: scroll; overflow-y: auto; scrollbar-width: auto; scrollbar-color: #777 var(--canvas); }
+.mart-commission-workspace .mart-report-table table { width: max-content; min-width: 100%; }
+.mart-commission-workspace .commission-horizontal-scroll { position: relative; bottom: auto; z-index: 1; display: block; width: 100%; max-width: 100%; box-sizing: border-box; flex: 0 0 24px; height: 24px; min-height: 24px; overflow-x: scroll; overflow-y: hidden; scrollbar-width: auto; border-radius: 0 0 12px 12px; }
+.mart-commission-workspace .commission-horizontal-scroll > div { flex: none; max-width: none; }
+.mart-commission-workspace .mart-report-table::-webkit-scrollbar { width: 14px; height: 14px; }
+.mart-commission-workspace .mart-report-table::-webkit-scrollbar-thumb { background: #888; border: 3px solid var(--surface); border-radius: 10px; }
+/* The synchronized bottom bar is the only horizontal scrollbar. */
+.mart-commission-workspace:has(.commission-horizontal-scroll) .mart-report-table { overflow-x: hidden; overflow-y: auto; }
+.mart-commission-workspace:has(.commission-horizontal-scroll) .mart-report-table::-webkit-scrollbar:horizontal { height: 0; }
+.growth-month-slot { display: grid; gap: 6px; }
+.growth-month-slot input { min-height: 40px; max-width: 160px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; }
+.growth-month-disable { padding: 4px; border: 0; background: transparent; color: var(--brand); font: inherit; font-size: 12px; cursor: pointer; }
+.growth-month-disable:disabled { color: var(--mart-muted); cursor: default; }
+
+/* Scrollbars belong to the report panel, never to the page viewport. */
+.mart-commission-workspace { grid-template-rows: minmax(0, 1fr); }
+.mart-commission-workspace > .commission-report { position: relative; isolation: isolate; }
+.mart-commission-workspace .commission-horizontal-scroll:focus { outline: none; }
+.mart-commission-workspace .commission-horizontal-scroll:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.mart-commission-workspace .mart-report-table tfoot { z-index: 1; }
+@media (min-width: 761px) and (min-height: 900px) {
+  .mart-commission-page { height: calc(100dvh - 102px); min-height: 0; }
+  .mart-commission-workspace { min-height: 0; }
+  .mart-commission-workspace:has(.commission-horizontal-scroll) .mart-report-table { min-height: 180px; }
+}
+@media (max-width: 760px) {
+  .mart-commission-workspace { grid-template-rows: auto auto; }
+}
+.mart-commission-page:has(.growth-report) { height: auto; }
+
+/* Both reports show at least five stores with horizontal controls above. */
+.mart-commission-page { height: auto; }
+.mart-commission-workspace:has(.commission-horizontal-scroll) .mart-report-table { flex: 0 0 auto; height: 510px; min-height: 510px; max-height: 510px; overflow-y: auto; }
+.mart-commission-workspace .commission-horizontal-scroll { border-radius: 0; border-top: 0; border-bottom: 1px solid var(--line); }
+
+.commission-overview { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.commission-overview-total { border-top: 3px solid var(--brand); background: var(--brand-soft); }
+.commission-overview-total > strong { color: var(--brand); }
+@media (max-width: 1200px) { .commission-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .commission-overview { grid-template-columns: minmax(0, 1fr); } }
+.products-month-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.products-month-controls label { display: grid; gap: 7px; font-size: 14px; }
+.products-month-controls input { padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface); font: inherit; }
+.products-month-controls p { max-width: 600px; color: var(--mart-muted); font-size: 14px; line-height: 1.6; }
+.products-method { padding: 16px 20px; color: var(--mart-muted); font-size: 14px; line-height: 1.7; border-top: 1px solid var(--line); }
+.products-method summary { cursor: pointer; font-weight: 600; }
+.products-store-report .products-overview strong { font-size: 24px; }
+.products-store-clickable { cursor: pointer; }
+.store-products-dialog { width: min(1400px, 94vw); max-width: 94vw; max-height: 90dvh; padding: 0; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--ink); box-shadow: 0 24px 80px #0004; }
+.store-products-dialog::backdrop { background: #10182788; backdrop-filter: blur(3px); }
+.store-products-dialog-content { display: flex; flex-direction: column; max-height: 88dvh; min-width: 0; }
+.store-products-dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 22px; border-bottom: 1px solid var(--line); }
+.store-products-dialog-heading h2 { margin: 6px 0; font-size: 23px; }
+.store-products-dialog-heading p { margin: 0; font-size: 14px; color: var(--muted); }
+.store-products-dialog-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 16px 28px; padding: 18px 22px; background: var(--canvas); }
+.store-products-dialog-summary span { font-size: 14px; }
+.store-products-dialog-summary strong { display: block; margin-bottom: 5px; font-size: 21px; }
+.store-products-dialog-summary .button { margin-left: auto; }
+.store-products-dialog-note { font-size: 13px; padding: 12px 22px; margin: 0; color: var(--muted); }
+.store-products-dialog-table { overflow: auto; min-height: 100px; flex: 1 1 auto; scrollbar-width: auto; }
+.store-products-dialog-table table { width: max-content; min-width: 100%; border-collapse: collapse; }
+.store-products-dialog-table th, .store-products-dialog-table td { white-space: nowrap; padding: 15px 18px; text-align: left; font-size: 14px; border-bottom: 1px solid var(--line); }
+.store-products-dialog-table td small { display: block; padding-top: 5px; color: var(--muted); }
+.store-products-dialog-table thead, .store-products-dialog-table tfoot { position: sticky; background: var(--surface); }
+.store-products-dialog-table thead { top: 0; z-index: 2; }
+.store-products-dialog-table tfoot { bottom: 0; font-weight: 700; }
+.store-products-dialog-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 22px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+@media (max-width: 760px) { .store-products-dialog-heading h2 { font-size: 19px; } .store-products-dialog-footer span { display: none; } .store-products-dialog-summary .button { margin-left: 0; } }
+
+.store-products-dialog-table { overflow-x: hidden; overflow-y: auto; }
+.store-products-dialog-heading, .store-products-dialog-summary, .store-products-dialog-note, .store-products-dialog-footer { flex-shrink: 0; }

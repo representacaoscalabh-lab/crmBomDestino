@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Download, Filter, Plus, Search, Trash2, TrendingUp, X } from "lucide-react";
+import { usePeriodRecords } from "@/lib/use-period-records";
 import { useCrmStore } from "@/lib/store";
 import { downloadXlsx } from "@/lib/xlsx";
 import type { Customer, Order, Product } from "@/lib/types";
@@ -50,7 +51,7 @@ function variation(current: number, previous: number) {
 }
 
 export function GrowthReport({ mode }: { mode: GrowthMode }) {
-  const { customers, products, orders } = useCrmStore();
+  const { customers, products } = useCrmStore();
   const now = new Date();
   const previousMonth = monthInput(new Date(now.getFullYear(), now.getMonth() - 1, 1));
   const [mainMonth, setMainMonth] = useState(monthInput(now));
@@ -79,6 +80,13 @@ export function GrowthReport({ mode }: { mode: GrowthMode }) {
     ? selectedIds.filter((id) => candidates.some((item) => item.id === id)).length
     : candidates.length;
   const chosenMonths = [mainMonth, ...compareMonths];
+  const selectedMonths = chosenMonths.filter(value => /^\d{4}-\d{2}$/.test(value)).sort();
+  const firstMonth = selectedMonths[0] || "";
+  const lastMonth = selectedMonths.at(-1) || "";
+  const lastParts = lastMonth.split("-").map(Number);
+  const orderData = usePeriodRecords<Order>("orders", firstMonth ? `${firstMonth}-01` : "", lastMonth ? `${lastMonth}-${new Date(lastParts[0], lastParts[1], 0).getDate()}` : "");
+  const orders = orderData.rows;
+
 
   function isIncluded(id: string) {
     return !selectionApplied || selectedIds.includes(id);
@@ -134,6 +142,7 @@ export function GrowthReport({ mode }: { mode: GrowthMode }) {
   }
 
   function generateReport() {
+    if (orderData.loading || orderData.error) { setError(orderData.error || "Aguarde o carregamento dos dados do período."); return; }
     if (!mainMonth || !compareMonths.length || compareMonths.some((month) => !month)) {
       setError("Selecione o mês principal e pelo menos um mês para comparar.");
       return;

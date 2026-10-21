@@ -1,3 +1,5 @@
+﻿> Referência histórica — versão anterior ou proposta de evolução. Este arquivo não comprova o estado atual nem a publicação no Firebase. Consulte o [índice atual](README.md), a [arquitetura](TECHNICAL.md) e o [guia de ativação](../docs/ativacao-reducao-leituras-firebase.md). Marcado em 21/10/2026.
+
 # Relatório de reconhecimento do projeto — Scala CRM / WRRJ
 
 **Data do levantamento:** 8 de outubro de 2026  
@@ -248,3 +250,4 @@ Para o sistema novo, recomenda-se definir a matriz de acesso por papel/escopo an
 - Páginas: [src/app/dashboard/page.tsx](../src/app/dashboard/page.tsx), [src/app/dashboard/clientes/page.tsx](../src/app/dashboard/clientes/page.tsx), [src/app/dashboard/pedidos/page.tsx](../src/app/dashboard/pedidos/page.tsx), [src/app/dashboard/agenda/page.tsx](../src/app/dashboard/agenda/page.tsx), [src/app/dashboard/produtos/page.tsx](../src/app/dashboard/produtos/page.tsx), [src/app/dashboard/metas/page.tsx](../src/app/dashboard/metas/page.tsx), [src/app/dashboard/relatorios/page.tsx](../src/app/dashboard/relatorios/page.tsx), [src/app/dashboard/graficos/page.tsx](../src/app/dashboard/graficos/page.tsx), [src/app/dashboard/exportacao/page.tsx](../src/app/dashboard/exportacao/page.tsx), [src/app/dashboard/configuracoes/page.tsx](../src/app/dashboard/configuracoes/page.tsx), [src/app/dashboard/notificacoes/page.tsx](../src/app/dashboard/notificacoes/page.tsx).
 - Serviços e validação: [src/lib/customer-service.ts](../src/lib/customer-service.ts), [src/lib/order-service.ts](../src/lib/order-service.ts), [src/lib/product-service.ts](../src/lib/product-service.ts), [src/lib/goal-service.ts](../src/lib/goal-service.ts), [src/lib/user-service.ts](../src/lib/user-service.ts), [src/lib/notification-service.ts](../src/lib/notification-service.ts), [src/lib/schemas.ts](../src/lib/schemas.ts).
 - Firebase e rotas servidor: [src/lib/firebase.ts](../src/lib/firebase.ts), [src/lib/firebase-admin.ts](../src/lib/firebase-admin.ts), [src/app/api/admin/approve-user/route.ts](../src/app/api/admin/approve-user/route.ts), [src/app/api/exports/complete/route.ts](../src/app/api/exports/complete/route.ts).
+

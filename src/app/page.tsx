@@ -1,20 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
-  BarChart3,
   Box,
   CalendarDays,
   ChevronDown,
   CircleHelp,
-  Gift,
   ShoppingCart,
+  UsersRound,
 } from "lucide-react";
 import { useCrmStore } from "@/lib/store";
 import { getExternalCustomerIds } from "@/lib/dashboard-scope";
+import { useDashboardRecords } from "@/lib/use-dashboard-records";
+import type { Order, Bonification } from "@/lib/types";
 import { DashboardCommission } from "@/components/dashboard-commission";
 
 const number = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
@@ -116,7 +117,7 @@ function DashboardColumns({ items, emptyTitle, emptyDescription, showCustomers =
           const columnValue = showCustomers ? item.customers ?? 0 : item.weight;
           const isHovered = hovered === item.id;
           return <div className={`dashboard-column-item ${isHovered ? "dashboard-column-item-hovered" : ""}`} key={item.id} onMouseEnter={() => setHovered(item.id)} onMouseLeave={() => setHovered(null)} onFocus={() => setHovered(item.id)} onBlur={() => setHovered(null)} tabIndex={0} aria-label={`${item.label}: ${number.format(item.weight)} kg${showCustomers ? `, ${item.customers ?? 0} clientes positivados` : ""}`}>
-            {isHovered && <div className="dashboard-column-tooltip"><strong>{item.label}</strong><span>weight: {number.format(item.weight)} kg</span>{showCustomers && <small>Positivações: {item.customers ?? 0} clientes</small>}</div>}
+            {isHovered && <div className="dashboard-column-tooltip"><strong>{item.label}</strong><span>{showCustomers ? `${item.customers ?? 0} clientes` : `${number.format(item.weight)} kg`}</span>{showCustomers && <small>Positivações: {item.customers ?? 0} clientes</small>}</div>}
             <i style={{ height: `${Math.max(item.weight > 0 ? 1 : 0, columnValue / axisMaximum * 100)}%` }} />
             <small>{item.label}</small>
           </div>;
@@ -161,7 +162,24 @@ function DashboardGrowthRanking({ items, emptyTitle, emptyDescription }: { items
 }
 
 export default function HomePage() {
-  const { customers: allCustomers, customerGroups, products, orders: allOrders, bonifications: allBonifications } = useCrmStore();
+  const { customers: allCustomers, customerGroups, products } = useCrmStore();
+  const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const periodOptions = useRef<HTMLDetailsElement>(null);
+
+  const rangeStart = startDate || dateKey(new Date(month.getFullYear(), month.getMonth(), 1));
+  const rangeEnd = endDate || dateKey(new Date(month.getFullYear(), month.getMonth() + 1, 0));
+  const spanDays = (Date.parse(`${rangeEnd}T00:00:00Z`) - Date.parse(`${rangeStart}T00:00:00Z`)) / 86400000 + 1;
+  const previousStart = startDate && endDate ? new Date(Date.parse(`${rangeStart}T00:00:00Z`) - spanDays * 86400000).toISOString().slice(0, 10) : dateKey(new Date(month.getFullYear(), month.getMonth() - 1, 1));
+  const reportStart = previousStart < `${month.getFullYear()}-01-01` ? previousStart : `${month.getFullYear()}-01-01`;
+  const reportEnd = rangeEnd > `${month.getFullYear()}-12-31` ? rangeEnd : `${month.getFullYear()}-12-31`;
+  const orderData = useDashboardRecords<Order>("orders", reportStart, reportEnd);
+  const bonusData = useDashboardRecords<Bonification>("bonifications", rangeStart, rangeEnd);
+  const allOrders = orderData.rows;
+  const allBonifications = bonusData.rows;
   const { customers, orders, bonifications } = useMemo(() => {
     const excluded = getExternalCustomerIds(allCustomers, customerGroups);
     return {
@@ -170,13 +188,7 @@ export default function HomePage() {
       bonifications: allBonifications.filter((bonus) => !excluded.has(bonus.customerId)),
     };
   }, [allCustomers, customerGroups, allOrders, allBonifications]);
-  const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [customStart, setCustomStart] = useState("");
-  const [customEnd, setCustomEnd] = useState("");
-
-  const { normalOrders, walletOrders, yearOrders, periodBonifications, monthlyChart, positiveCustomers, segmentChart, cityChart, productChart, customerGrowthChart } = useMemo(() => {
+  const { normalOrders, commissionOrders, yearOrders, periodBonifications, monthlyChart, positiveCustomers, segmentChart, cityChart, productChart, customerGrowthChart } = useMemo(() => {
     const monthStart = dateKey(new Date(month.getFullYear(), month.getMonth(), 1));
     const nextMonth = dateKey(new Date(month.getFullYear(), month.getMonth() + 1, 1));
     const periodStart = startDate || monthStart;
@@ -192,7 +204,6 @@ export default function HomePage() {
     const inSelectedPeriod = (date: string) => date >= periodStart && date < periodEndExclusive;
     const normalOrders = orders.filter((order) => order.status === "normal" && inSelectedPeriod(order.issueDate));
     const previousNormalOrders = orders.filter((order) => order.status === "normal" && order.issueDate >= previousPeriodStart && order.issueDate < periodStart);
-    const walletOrders = orders.filter((order) => order.status === "wallet" && inSelectedPeriod(order.issueDate));
     const periodBonifications = bonifications.filter((bonus) => inSelectedPeriod(bonus.issueDate));
     const yearOrders = orders.filter((order) => order.status === "normal" && order.issueDate >= yearStart && order.issueDate < yearEnd);
     const monthlyChart = Array.from({ length: 12 }, (_, index) => {
@@ -252,12 +263,12 @@ export default function HomePage() {
         const previousValue = previousCustomerWeights.get(item.id)?.value ?? 0;
         return { ...item, previousValue, growth: item.value - previousValue };
       })
-      .filter((item) => item.growth > 0)
+      .filter((item) => item.previousValue > 0 && item.growth > 0)
       .sort((a, b) => b.growth - a.growth || a.label.localeCompare(b.label, "pt-BR"))
       .slice(0, 5);
     return {
       normalOrders,
-      walletOrders,
+      commissionOrders: allOrders.filter(order => order.status === "normal" && inSelectedPeriod(order.issueDate)),
       yearOrders,
       periodBonifications,
       monthlyChart,
@@ -267,21 +278,17 @@ export default function HomePage() {
       productChart: topEntries(productWeights, 6),
       customerGrowthChart,
     };
-  }, [customers, customerGroups, products, orders, bonifications, month, startDate, endDate]);
+  }, [customers, customerGroups, products, orders, allOrders, bonifications, month, startDate, endDate]);
 
   const activeCustomers = customers.filter((customer) => customer.status === "Ativo").length;
   const monthWeight = normalOrders.reduce((sum, order) => sum + order.totalWeight, 0);
   const monthOrderValue = normalOrders.reduce((sum, order) => sum + order.totalValue, 0);
   const annualWeight = yearOrders.reduce((sum, order) => sum + order.totalWeight, 0);
-  const walletWeight = walletOrders.reduce((sum, order) => sum + order.totalWeight, 0);
-  const conversion = activeCustomers ? (positiveCustomers / activeCustomers) * 100 : 0;
   const cards = [
-    { title: "Peso do mês", value: `${number.format(monthWeight)} kg`, detail: "Peso faturado no período", icon: Box },
-    { title: "Valor total dos pedidos", value: currency.format(monthOrderValue), detail: "Faturamento dos pedidos no período", icon: ShoppingCart },
-    { title: "Peso anual", value: `${number.format(annualWeight)} kg`, detail: `Acumulado de ${month.getFullYear()}`, icon: BarChart3 },
-    { title: "Carteira (mês atual)", value: `${number.format(walletWeight)} kg`, detail: "Peso em carteira no período selecionado", icon: ShoppingCart },
-    { title: "Pedidos", value: `${normalOrders.length}`, detail: "Pedidos faturados no período", icon: ShoppingCart },
-    { title: "Bonificações", value: `${number.format(periodBonifications.reduce((sum, bonus) => sum + bonus.totalWeight, 0))} kg`, detail: `${periodBonifications.length} amostra(s) · fora das vendas`, icon: Gift },
+    { title: "Valor dos pedidos", value: currency.format(monthOrderValue), detail: "No período", icon: ShoppingCart },
+    { title: "Peso vendido", value: `${number.format(monthWeight)} kg`, detail: "No período", icon: Box },
+    { title: "Pedidos", value: `${normalOrders.reduce((sum, order) => sum + (order.recordCount ?? 1), 0)}`, detail: "Registrados no período", icon: ShoppingCart },
+    { title: "Clientes com compra", value: `${positiveCustomers}`, detail: `${activeCustomers} clientes ativos na base`, icon: UsersRound },
   ];
 
   function shiftMonth(value: number) {
@@ -294,6 +301,7 @@ export default function HomePage() {
     if (!customStart || !customEnd || customStart > customEnd) return;
     setStartDate(customStart);
     setEndDate(customEnd);
+    if (periodOptions.current) periodOptions.current.open = false;
   }
 
   function clearPeriod() {
@@ -301,62 +309,37 @@ export default function HomePage() {
     setEndDate("");
     setCustomStart("");
     setCustomEnd("");
+    if (periodOptions.current) periodOptions.current.open = false;
   }
 
+  if (orderData.error || bonusData.error) return <div className="page-content"><section className="panel page-empty" role="alert"><strong>Não foi possível carregar a dashboard</strong><p>{orderData.error || bonusData.error}</p></section></div>;
+  if (orderData.loading || bonusData.loading) return <div className="page-content"><section className="panel page-empty" role="status">Carregando indicadores do período...</section></div>;
   return (
-    <div className="page-content dashboard-page">
-      <section className="panel dashboard-filter-panel">
-        <div className="dashboard-filter-header">
-          <div>
-            <p className="eyebrow">DASHBOARD COMERCIAL</p>
-            <h1>Visão de vendas <span className="month-chip">{monthName(month)}</span></h1>
-          </div>
-          <div className="dashboard-controls">
-            <div className="month-controls">
-              <button className="button button-outline" onClick={() => shiftMonth(-1)}><ArrowLeft size={15} /> Mês anterior</button>
-              <button className="button button-selected" onClick={() => { setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1)); clearPeriod(); }}>Mês atual</button>
-              <button className="button button-outline" onClick={() => shiftMonth(1)}>Próximo mês <ArrowRight size={15} /></button>
-            </div>
-            <div className="read-status"><span className="read-indicator" /><span><strong>Dados do Firestore</strong><small>Atualização em tempo real</small></span><button title="A atualização ocorre automaticamente">Atualizado</button></div>
-          </div>
-        </div>
-        <div className="custom-period">
-          <strong>Período personalizado</strong>
-          <label>Data início<input type="date" value={customStart} onChange={(event) => setCustomStart(event.target.value)} /></label>
-          <label>Data fim<input type="date" value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} /></label>
-          <button className="button button-primary" onClick={applyPeriod}>Aplicar período</button>
-          <button className="button button-outline" onClick={clearPeriod}>Limpar período</button>
-        </div>
+    <div className="page-content dashboard-page dashboard-clean">
+      <header className="dash-heading"><div><span className="dash-scope">WRRJ</span><h1>Visão geral</h1></div><Link href="/relatorios" className="dash-report-link">Relatórios <ArrowRight size={16} /></Link></header>
+      <section className="dash-period-bar" aria-label="Período do dashboard">
+        <div className="dash-month-picker"><button type="button" className="icon-button" aria-label="Mês anterior" onClick={() => shiftMonth(-1)}><ArrowLeft size={17} /></button><strong>{startDate && endDate ? `${startDate.split("-").reverse().join("/")} – ${endDate.split("-").reverse().join("/")}` : monthName(month)}</strong><button type="button" className="icon-button" aria-label="Próximo mês" onClick={() => shiftMonth(1)}><ArrowRight size={17} /></button></div>
+        <div className="dash-period-actions"><button type="button" className="button button-outline" onClick={() => { setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1)); clearPeriod(); }}>Mês atual</button><details className="dash-date-options" ref={periodOptions}><summary><CalendarDays size={16} /> Personalizar</summary><div className="dash-date-fields"><label>De<input type="date" value={customStart} onChange={event => setCustomStart(event.target.value)} /></label><label>Até<input type="date" min={customStart || undefined} value={customEnd} onChange={event => setCustomEnd(event.target.value)} /></label><button type="button" className="button button-primary" disabled={!customStart || !customEnd || customStart > customEnd} onClick={applyPeriod}>Aplicar</button><button type="button" className="button button-outline" onClick={clearPeriod}>Limpar</button></div></details></div>
       </section>
-
       <section className="dashboard-metrics" aria-label="Indicadores de vendas">
-        {cards.map(({ title, value, detail, icon: Icon }) => <article className="metric-card" key={title}><div className="metric-card-top"><span>{title}</span><span className="metric-icon"><Icon size={19} /></span></div><strong>{value}</strong><small>{detail}</small></article>)}
+        {cards.map(({ title, value, detail, icon: Icon }) => <article className="metric-card" key={title}><div className="metric-card-top"><span>{title}</span><span className="metric-icon"><Icon size={18} /></span></div><strong>{value}</strong><small>{detail}</small></article>)}
       </section>
-
-      <DashboardCommission customers={allCustomers} groups={customerGroups} orders={normalOrders} />
-
-      <section className="panel executive-panel">
-        <div className="executive-heading"><div><p className="eyebrow">RESUMO EXECUTIVO</p><h2>Performance geral</h2></div><span className="goal-count">0 metas ativas</span></div>
-        <div className="executive-metrics">
-          <article><span>Clientes na Carteira</span><strong>{activeCustomers}</strong><small>Clientes ativos</small></article>
-          <article className="executive-highlight"><span>Clientes positivados</span><strong>{positiveCustomers}</strong><small>Compraram no período</small></article>
-          <article><span>Conversão</span><strong>{conversion.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</strong><small>Sobre carteira</small></article>
+      {(orderData.loading || bonusData.loading) && <p role="status">Carregando dados do período...</p>}
+      {(orderData.error || bonusData.error) && <p role="alert">{orderData.error || bonusData.error}</p>}
+      <DashboardCommission customers={allCustomers} groups={customerGroups} orders={commissionOrders} />
+      <section className="dashboard-chart-grid dash-primary-charts" aria-label="Principais resultados">
+        <article className="panel chart-panel"><div className="chart-heading"><h2>Evolução do peso</h2><span className="dash-chart-unit">kg · {month.getFullYear()}</span></div><DashboardColumns items={monthlyChart.map(item => ({ id: item.id, label: item.label, weight: item.weight }))} emptyTitle="Sem pedidos no ano" emptyDescription="" /></article>
+        <article className="panel chart-panel"><div className="chart-heading"><h2>Produtos mais vendidos</h2><span className="dash-chart-unit">por peso</span></div><DashboardRanking items={productChart} emptyTitle="Sem produtos vendidos no período" emptyDescription="" /></article>
+      </section>
+      <details className="panel dash-more-analysis"><summary><div><strong>Mais análises</strong><span>Explore os resultados de clientes, regiões e segmentos</span></div><span className="dash-analysis-action"><span className="dash-analysis-expand">Clique para ver mais</span><span className="dash-analysis-collapse">Recolher análises</span><ChevronDown size={18} aria-hidden="true" /></span></summary><div className="dash-extra-content">
+        <div className="dash-secondary-metrics"><span>Peso em {month.getFullYear()} <strong>{number.format(annualWeight)} kg</strong></span><span>Amostras e bonificações no período <strong>{number.format(periodBonifications.reduce((sum, bonus) => sum + bonus.totalWeight, 0))} kg</strong></span></div>
+        <div className="dashboard-chart-grid">
+          <article className="panel chart-panel"><div className="chart-heading"><h2>Clientes com compra por mês</h2></div><DashboardColumns items={monthlyChart.map(item => ({ id: item.id, label: item.label, weight: item.weight, customers: item.customers }))} showCustomers tone="dark" emptyTitle="Sem compras no ano" emptyDescription="" /></article>
+          <article className="panel chart-panel"><div className="chart-heading"><h2>Clientes com crescimento</h2><span className="dash-chart-unit">vs. período anterior</span></div><DashboardGrowthRanking items={customerGrowthChart} emptyTitle="Sem crescimento com base anterior" emptyDescription="" /></article>
+          <article className="panel chart-panel"><div className="chart-heading"><h2>Peso por cidade</h2></div><DashboardPie items={cityChart} emptyTitle="Sem dados de cidade" emptyDescription="" /></article>
+          <article className="panel chart-panel"><div className="chart-heading"><h2>Peso por segmento</h2></div><DashboardPie items={segmentChart} emptyTitle="Sem dados de segmento" emptyDescription="" /></article>
         </div>
-        <div className="no-goals">Nenhuma meta ativa encontrada. <Link href="/metas">Criar uma meta <ArrowRight size={14} /></Link></div>
-      </section>
-
-      <section className="dashboard-chart-grid">
-        <article className="panel chart-panel"><div className="chart-heading"><div><p className="eyebrow">PESO</p><h2>Peso mensal</h2></div><button className="chart-type"><CalendarDays size={13} /> Colunas <ChevronDown size={13} /></button></div>
-          <DashboardColumns items={monthlyChart.map((item) => ({ id: item.id, label: item.label, weight: item.weight }))} emptyTitle="Nenhum dado para exibir" emptyDescription="Os pedidos importados aparecerão neste gráfico." />
-        </article>
-        <article className="panel chart-panel"><div className="chart-heading"><div><p className="eyebrow">POSITIVAÇÃO</p><h2>Clientes ativos por mês</h2></div><button className="chart-type"><CalendarDays size={13} /> Colunas <ChevronDown size={13} /></button></div>
-          <DashboardColumns items={monthlyChart.map((item) => ({ id: item.id, label: item.label, weight: item.weight, customers: item.customers }))} showCustomers tone="dark" emptyTitle="Sem compras neste período" emptyDescription="A positivação de clientes será calculada pelos pedidos." />
-        </article>
-        <article className="panel chart-panel"><div className="chart-heading"><div><p className="eyebrow">SEGMENTO</p><h2>Peso por segmento</h2></div><span className="chart-type">Pizza</span></div><DashboardPie items={segmentChart} emptyTitle="Sem dados de segmento" emptyDescription="Adicione segmentos aos clientes para visualizar esta análise." /></article>
-        <article className="panel chart-panel"><div className="chart-heading"><div><p className="eyebrow">CIDADE</p><h2>Peso por cidade</h2></div><span className="chart-type">Pizza</span></div><DashboardPie items={cityChart} emptyTitle="Sem dados de cidade" emptyDescription="Cadastre a cidade nos clientes para gerar o gráfico." /></article>
-        <article className="panel chart-panel"><div className="chart-heading"><div><p className="eyebrow">PRODUTOS</p><h2>Top produtos por peso</h2></div><span className="chart-type">Maior peso</span></div><DashboardRanking items={productChart} emptyTitle={products.length ? "Importe pedidos para analisar produtos" : "Cadastre produtos e importe pedidos"} emptyDescription="Os itens vendidos serão classificados pelo peso total." /></article>
-        <article className="panel chart-panel"><div className="chart-heading"><div><p className="eyebrow">CLIENTES</p><h2>Top 5 clientes com crescimento</h2></div><span className="chart-type">vs. período anterior</span></div><DashboardGrowthRanking items={customerGrowthChart} emptyTitle="Sem crescimento no período" emptyDescription="Os clientes com maior aumento de peso em relação ao período anterior de mesma duração aparecerão aqui." /></article>
-      </section>
+      </div></details>
     </div>
   );
 }

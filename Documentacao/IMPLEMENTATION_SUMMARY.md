@@ -1,3 +1,5 @@
+﻿> Referência histórica — versão anterior ou proposta de evolução. Este arquivo não comprova o estado atual nem a publicação no Firebase. Consulte o [índice atual](README.md), a [arquitetura](TECHNICAL.md) e o [guia de ativação](../docs/ativacao-reducao-leituras-firebase.md). Marcado em 21/10/2026.
+
 # ✅ Implementação Completa: Cache Context + Monitor de Storage
 
 ## 🎯 O Que Foi Implementado
@@ -294,3 +296,4 @@ export function GrowthPage() {
 ```
 
 Cada nível reduz chamadas ao servidor Firestore! 🚀
+

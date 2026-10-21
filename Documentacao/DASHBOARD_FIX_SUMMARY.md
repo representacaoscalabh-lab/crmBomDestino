@@ -1,3 +1,5 @@
+﻿> Referência histórica — versão anterior ou proposta de evolução. Este arquivo não comprova o estado atual nem a publicação no Firebase. Consulte o [índice atual](README.md), a [arquitetura](TECHNICAL.md) e o [guia de ativação](../docs/ativacao-reducao-leituras-firebase.md). Marcado em 21/10/2026.
+
 # 🔧 Dashboard Date Filtering Bug - FIXED
 
 ## 📌 What Was Wrong
@@ -230,3 +232,4 @@ See **DASH_DATE_FIX_INSTRUCTIONS.md** for detailed re-import instructions.
 **Build Status**: ✅ Ready to Deploy
 **Last Updated**: 2026-06-30
 **Version**: 1.0 - Complete Fix
+

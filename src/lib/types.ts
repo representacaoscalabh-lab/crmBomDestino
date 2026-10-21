@@ -82,6 +82,8 @@ export type Goal = {
 };
 
 export type Order = {
+  /** Number of source orders represented by a dashboard daily aggregate. */
+  recordCount?: number;
   id: string;
   preOrder: string;
   issueDate: string;
@@ -92,7 +94,7 @@ export type Order = {
   store: string;
   customerCity?: string;
   paymentTerm?: string;
-  status: "normal" | "wallet";
+  status: "normal";
   items: OrderItem[];
   totalValue: number;
   totalWeight: number;

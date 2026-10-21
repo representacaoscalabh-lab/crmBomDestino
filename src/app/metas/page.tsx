@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { CalendarDays, Check, Download, Pencil, Plus, Search, Target, Trash2, UsersRound, X } from "lucide-react";
+import { usePeriodRecords } from "@/lib/use-period-records";
 import { useCrmStore } from "@/lib/store";
 import { downloadXlsx } from "@/lib/xlsx";
 import type { Customer, Goal, Order } from "@/lib/types";
@@ -93,7 +94,12 @@ function MetricIcon({ metric }: { metric: GoalMetric }) {
 }
 
 export default function GoalsPage() {
-  const { goals, customers, orders, addGoal, updateGoal, deleteGoal, deleteGoals, dataError } = useCrmStore();
+  const { goals, customers, addGoal, updateGoal, deleteGoal, deleteGoals, dataError } = useCrmStore();
+  const goalRanges = goals.map(periodBounds);
+  const reportStart = goalRanges.map(range => range.start).sort()[0] || "";
+  const reportEnd = goalRanges.map(range => range.end).sort().at(-1) || "";
+  const orderData = usePeriodRecords<Order>("orders", reportStart, reportEnd, goals.length > 0);
+  const orders = orderData.rows;
   const [modalOpen, setModalOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [form, setForm] = useState<GoalForm>(blankGoal);
@@ -230,13 +236,15 @@ export default function GoalsPage() {
 
   const allVisibleSelected = visibleGoals.length > 0 && visibleGoals.every((goal) => selectedIds.includes(goal.id));
 
+  if (orderData.error) return <div className="page-content"><p role="alert">{orderData.error}</p></div>;
+  if (orderData.loading) return <div className="page-content"><p role="status">Carregando resultados das metas...</p></div>;
   return <div className="page-content goals-page">
     <header className="goals-page-heading">
       <div><p className="eyebrow">PLANEJAMENTO COMERCIAL</p><h1>Metas</h1><p>Acompanhe o progresso das metas mensais e anuais cadastradas.</p></div>
       <button type="button" className="button button-primary" onClick={openCreate}><Pencil size={15} /> Nova meta</button>
     </header>
     <div className="goals-toolbar">
-      <div className="goals-sync-badge"><span className={dataError ? "goals-sync-indicator goals-sync-error" : "goals-sync-indicator"}>{dataError ? <X size={14} /> : <Check size={14} />}</span><span><strong>{dataError ? "Falha na sincronização" : "Dados sincronizados"}</strong><small>{dataError || "Metas e pedidos atualizados em tempo real"}</small></span></div>
+      <div className="goals-sync-badge"><span className={dataError ? "goals-sync-indicator goals-sync-error" : "goals-sync-indicator"}>{dataError ? <X size={14} /> : <Check size={14} />}</span><span><strong>{dataError ? "Falha na sincronização" : "Dados sincronizados"}</strong><small>{dataError || "Metas e pedidos consultados para os períodos cadastrados"}</small></span></div>
       <div className="goals-search-filters"><label className="search-field"><Search size={15} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por título ou período" aria-label="Buscar metas por título ou período" /></label><select aria-label="Filtrar status das metas" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="Todos">Todos os status</option><option value="Ativa">Ativas</option><option value="Inativa">Inativas</option></select></div>
     </div>
     <div className="goals-bulk-actions">

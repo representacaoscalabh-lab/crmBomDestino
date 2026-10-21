@@ -87,42 +87,42 @@ test("comissao por loja arredonda centavos e total geral reconcilia com filtros"
   ];
   const rows = buildNetworkCommission(stores, 3.5);
   assert.equal(rows[0].commission, 3.5);
-  assert.equal(rows[1].commission, 7.01);
-  assert.equal(sumCommissionRows(rows).commission, 10.51);
+  assert.equal(rows[1].commission, 0);
+  assert.equal(sumCommissionRows(rows).commission, 3.5);
   assert.equal(sumCommissionRows(rows).base, 300.2);
   assert.equal(sumCommissionRows(rows).orders, 3);
   assert.equal(filterCommissionRows(rows, "sao joao", "", "all").length, 1);
   assert.equal(filterCommissionRows(rows, "12345678000100", "", "all").length, 1);
   assert.equal(filterCommissionRows(rows, "", "Oliveira", "with").length, 1);
   assert.equal(filterCommissionRows(rows, "", "Oliveira", "without").length, 1);
-  assert.equal(sumCommissionRows(filterCommissionRows(rows, "Maria", "", "all")).commission, 7.01);
+  assert.equal(sumCommissionRows(filterCommissionRows(rows, "Maria", "", "all")).commission, 0);
   assert.equal(buildNetworkCommission(stores, 0)[0].commission, 0);
   assert.throws(() => buildNetworkCommission(stores, NaN), /comissão/);
   assert.throws(() => buildNetworkCommission(stores, 101), /comissão/);
 });
 
-test("nossa comissao e a do vendedor usam percentuais independentes sobre os pedidos", () => {
+test("nossa carteira recebe somente nossa comissao", () => {
   const stores = [{ customer, seller: "", current: { revenue: 1000, orders: 1 } }];
   const rows = buildNetworkCommission(stores, 5, 2, "orders");
   assert.equal(rows[0].commission, 50);
-  assert.equal(rows[0].sellerCommission, 20);
-  assert.equal(rows[0].sellerPercent, 2);
-  assert.equal(sumCommissionRows(rows).sellerCommission, 20);
-  assert.equal(buildNetworkCommission(stores, 5)[0].sellerCommission, null);
+  assert.equal(rows[0].sellerCommission, 0);
+  assert.equal(rows[0].sellerPercent, 0);
+  assert.equal(sumCommissionRows(rows).sellerCommission, 0);
+  assert.equal(buildNetworkCommission(stores, 5)[0].sellerCommission, 0);
   assert.equal(buildNetworkCommission(stores, 5, 0, "orders")[0].sellerCommission, 0);
   const result = buildDashboardCommission([{ ...customer, groupId: "g1" }], [{ id: "g1", name: "Rede", commissionPercent: 5, sellerCommissionPercent: 2 }], [{ customerId: customer.id, status: "normal", totalValue: 1000 }]);
   assert.equal(result.commission, 50);
-  assert.equal(result.sellerCommission, 20);
+  assert.equal(result.sellerCommission, 0);
   assert.equal(result.rows[0].sellerPercent, 2);
   assert.equal(result.pendingSellerStores, 0);
   const { createCommissionWorkbook } = load("network-commission-export");
   const workbook = createCommissionWorkbook(rows, rows, { name: "Rede", start: "2026-10-01", end: "2026-10-19", scope: "Nossa carteira", status: "Normais", percent: 5, sellerPercent: 2, search: "", city: "", activity: "all" });
-  assert.equal(workbook.Sheets["Comissão por loja"].J2.v, 50);
-  assert.equal(workbook.Sheets["Comissão por loja"].K2.v, 0.02);
-  assert.equal(workbook.Sheets["Comissão por loja"].L2.v, 20);
+  assert.equal(workbook.Sheets["Comissão por loja"].J15.v, 50);
+  assert.equal(workbook.Sheets["Comissão por loja"].K15.v, 0);
+  assert.equal(workbook.Sheets["Comissão por loja"].L15.v, 0);
 });
 
-test("XLS de comissao preserva ordenacao, filtros, codigos e totais", () => {
+test("XLS de comissao inclui todas as lojas e resumo acima do detalhamento", () => {
   const { createCommissionWorkbook } = load("network-commission-export");
   const XLS = nodeRequire("@e965/xlsx");
   const rows = buildNetworkCommission([
@@ -134,14 +134,18 @@ test("XLS de comissao preserva ordenacao, filtros, codigos e totais", () => {
   const data = XLS.write(workbook, { bookType: "biff8", type: "buffer" });
   const read = XLS.read(data, { type: "buffer" });
   const sheet = read.Sheets["Comissão por loja"];
-  assert.equal(sheet.B2.v, "02815");
-  assert.equal(sheet.I2.v, 0.05);
-  assert.equal(sheet.J2.v, 10);
-  assert.equal(sheet.J3.v, 10);
-  assert.equal(read.Sheets.Resumo.B11.v, 15);
-  assert.equal(read.Sheets.Resumo.B13.v, 10);
-  assert.equal(read.Sheets.Resumo.B7.v, "Loja B");
+  assert.deepEqual(read.SheetNames, ["Comissão por loja"]);
+  assert.equal(sheet.B15.v, "0002");
+  assert.equal(sheet.B16.v, "02815");
+  assert.equal(sheet.J15.v, 5);
+  assert.equal(sheet.J16.v, 0);
+  assert.equal(sheet.J17.v, 5);
+  assert.equal(sheet.B5.v, 300);
+  assert.equal(sheet.B7.v, 5);
+  assert.equal(sheet.B9.v, 5);
+  assert.equal(sheet.A14.v, "Cliente");
 });
+
 const { parseOesaScreenshot, buildOesaScreenshotImport, pendingOesaScreenshotReview } = load("oesa-screenshots");
 
 test("prints OESA pareiam arquivos em qualquer ordem pela sequencia incluindo quantidades repetidas", () => {
@@ -395,6 +399,7 @@ test("pedido existente e produto com quantidade ou peso invalido sao rejeitados"
 });
 
 function mockStore(firestore) {
+  firestore = { query: (...parts) => parts, where: (...parts) => parts, ...firestore };
   const filename = path.resolve(testRoot, "..", "src", "lib", "store.tsx");
   const source = fs.readFileSync(filename, "utf8");
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText;
@@ -402,6 +407,14 @@ function mockStore(firestore) {
   vm.runInNewContext(output, {
     exports,
     require: (id) => {
+      if (id === "@/lib/customer-document-reservation") return { customerReservationsEnabled: false };
+      if (id === "@/lib/customer-document-query") {
+        const helper = fs.readFileSync(path.resolve(testRoot, "..", "src/lib/customer-document-query.ts"), "utf8");
+        const helperExports = {};
+        const helperCode = ts.transpileModule(helper, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+        new Function("exports", "require", helperCode)(helperExports, name => name === "firebase/firestore" ? firestore : name === "@/lib/firebase" ? { db: {} } : load(name.slice(6)));
+        return helperExports;
+      }
       if (id === "firebase/firestore") return firestore;
       if (id === "next/navigation") return { usePathname: () => "/clientes" };
       if (id === "@/lib/auth") return { useAuth: () => ({ crmUser: { status: "approved" } }) };

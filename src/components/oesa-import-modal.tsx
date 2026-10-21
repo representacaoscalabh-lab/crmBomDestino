@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { findImportRecords } from "@/lib/import-existing-records";
 import { useCrmStore } from "@/lib/store";
 import { buildOesaOrderImport, parseOesaOrderPdf, updateOesaItem, updateOesaOrder } from "@/lib/oesa-order-pdf";
 import type { Order } from "@/lib/types";
@@ -37,7 +38,8 @@ export function OesaImportModal({ onClose }: { onClose: () => void }) {
     setBusy(true); setError(""); setPreview([]); setWarnings([]); setSummaries([]); setProgress(0);
     try {
       const parsed = await parseOesaOrderPdf(new Uint8Array(await file.arrayBuffer()), setProgress);
-      const result = buildOesaOrderImport(parsed, customers, products, orders);
+      const existing = await findImportRecords("orders", parsed.map(order => order.orderNumber));
+      const result = buildOesaOrderImport(parsed, customers, products, existing as Order[]);
       setPreview(result.orders); setWarnings(result.warnings); setSummaries(result.summaries);
       if (!result.orders.length) setError("Nenhum pedido pronto para importar. Confira os avisos.");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível ler o PDF."); }

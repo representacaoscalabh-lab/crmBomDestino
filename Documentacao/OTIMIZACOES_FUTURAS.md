@@ -1,3 +1,5 @@
+﻿> Referência histórica — versão anterior ou proposta de evolução. Este arquivo não comprova o estado atual nem a publicação no Firebase. Consulte o [índice atual](README.md), a [arquitetura](TECHNICAL.md) e o [guia de ativação](../docs/ativacao-reducao-leituras-firebase.md). Marcado em 21/10/2026.
+
 # Plano de otimizações futuras
 
 ## Visão geral
@@ -120,3 +122,4 @@ O plano prioriza mudanças simples e de baixo risco primeiro, para gerar ganho r
 - Agregações e resumos (prioridade alta): criar coleções de resumos mensais/por-loja para métricas pesadas (ex.: `summaries/monthly/{YYYY}-{MM}`). Campos sugeridos: `weight`, `ordersCount`, `positivations`, `revenue`, `updatedAt`.
 - Atualização incremental: usar Cloud Functions acionadas em criação/atualização/exclusão de pedidos para manter os resumos idempotentes e consistentes.
 - Relatórios server-side: para relatórios que hoje agregam no cliente, implementar endpoints que retornem dados já agregados e paginados, evitando download massivo de documentos para o browser.
+

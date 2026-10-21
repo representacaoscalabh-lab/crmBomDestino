@@ -1,4 +1,6 @@
-# Central de Relatórios
+﻿# Central de Relatórios
+
+Atualizado em **21/10/2026**. Para arquitetura e consultas atuais, consulte [Documentação técnica](TECHNICAL.md).
 
 Rota: `/relatorios`. A página `/acompanhamento-redes` e sua entrada no menu foram removidas. O relatório dedicado do Mart Minas permanece em `/relatorios/mart-minas`.
 
@@ -28,8 +30,9 @@ As tabelas têm rolagem interna, cabeçalho fixo, ordenação, pesquisa sem dist
 
 O XLSX contém todas as linhas da busca atual na ordenação selecionada, inclusive as páginas não visíveis. O nome do arquivo identifica o relatório e as datas. Valores são exportados como números, códigos como texto e ausência de base como “Sem base”.
 
-Pedidos sem um cliente cadastrado correspondente não são atribuídos por aproximação; a página sinaliza a quantidade fora da análise. Valores de pedidos não representam faturamento confirmado. Os cálculos reutilizam os dados sincronizados pelo store, sem novas coleções, índices ou gravações no Firestore.
+Pedidos sem um cliente cadastrado correspondente não são atribuídos por aproximação; a página sinaliza a quantidade fora da análise. Valores de pedidos não representam faturamento confirmado. Os cálculos usam conjuntos completos para o intervalo histórico necessário, consultados em lotes e compartilhados em cache. A paginação de cinquenta linhas nesta central organiza o resultado analítico já calculado; ela é distinta da paginação por cursor das listas de pedidos/bonificações. A arquitetura de resumos e seus requisitos de ativação estão no [guia do Firebase](../docs/ativacao-reducao-leituras-firebase.md).
 
 ## Verificação
 
 `node --test tests/commercial-reports.test.mjs` cobre filtros, carteiras, produto, datas, clientes sem compra, comparações, frequência, consolidação, positivação, bonificações e renderização com base preenchida ou vazia.
+

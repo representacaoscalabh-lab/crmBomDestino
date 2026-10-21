@@ -1,3 +1,5 @@
+﻿> Referência histórica — versão anterior ou proposta de evolução. Este arquivo não comprova o estado atual nem a publicação no Firebase. Consulte o [índice atual](README.md), a [arquitetura](TECHNICAL.md) e o [guia de ativação](../docs/ativacao-reducao-leituras-firebase.md). Marcado em 21/10/2026.
+
 # Visualização e leituras dos relatórios
 
 ## Comportamento
@@ -44,3 +46,4 @@ node --test scripts/test-report-loading.mjs
 ```
 
 Os testes cobrem limites e continuidade da paginação, status, busca normalizada, isolamento por cliente/período/loja, carteira, deduplicação e carregamento por tipo de relatório. A validação visual e as consultas com dados reais requerem uma sessão autenticada no navegador.
+

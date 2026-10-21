@@ -22,7 +22,6 @@ import {
   Target,
   TrendingUp,
   UsersRound,
-  Wallet,
   X,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -36,7 +35,6 @@ const navigation = [
   { href: "/clientes", label: "Clientes", icon: UsersRound },
   { href: "/pedidos", label: "Pedidos", icon: ShoppingCart },
   { href: "/bonificacoes", label: "Bonificações", icon: Gift },
-  { href: "/carteira", label: "Carteira", icon: Wallet },
   { href: "/exportacao", label: "Importações e exportações", icon: Download },
   { href: "/produtos", label: "Produtos", icon: Package },
   { href: "/metas", label: "Metas", icon: Target },

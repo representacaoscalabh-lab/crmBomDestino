@@ -113,6 +113,7 @@ test("central renderiza aberta, sem modal, com base preenchida ou vazia", () => 
   const sorting = load("../src/components/sort-heading.tsx");
   for (const source of [data, { customers: [], customerGroups: [], orders: [], products: [], bonifications: [] }]) {
     const { ReportCenter } = load("../src/components/commercial-report-center.tsx", (id) => {
+      if (id === "@/lib/use-period-records") return { usePeriodRecords: resource => ({ rows: source[resource], loading: false }) };
       if (id === "@/lib/store") return { useCrmStore: () => source };
       if (id === "@/lib/commercial-reports") return lib;
       if (id === "@/lib/mart-minas-analytics") return { saoPauloToday: () => "2026-10-16" };

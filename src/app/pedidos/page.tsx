@@ -4,12 +4,14 @@ import { ImportIssues } from "@/components/import-issues";
 import { OesaImportModal } from "@/components/oesa-import-modal";
 import { OesaScreenshotsModal } from "@/components/oesa-screenshots-modal";
 
-import { useTableSort } from "@/components/sort-heading";
+import { findImportRecords } from "@/lib/import-existing-records";
+import { RecordPagination } from "@/components/record-pagination";
+import { getRecordDetail, useRecordPage } from "@/lib/use-record-page";
 import { importFailureMessage } from "@/lib/import-validation";
 
 import { useMemo, useState } from "react";
 import { CalendarDays, ClipboardList, Database, Download, Eye, FileText, PackageCheck, Pencil, Plus, RefreshCw, Search, ShoppingCart, SlidersHorizontal, Trash2, Upload, UserRound, X } from "lucide-react";
-import { useCrmStore } from "@/lib/store";
+import { useCrmStore, useCrmResources } from "@/lib/store";
 import { getPackageValues } from "@/lib/product-packaging";
 import { downloadXlsx } from "@/lib/xlsx";
 import { buildNetworkBonificationImport, buildNetworkOrderImport, parseNetworkOrderPdf } from "@/lib/network-order-pdf";
@@ -58,7 +60,6 @@ const currentMonthRange = () => {
   const lastDay = String(new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()).padStart(2, "0");
   return { start: `${date.getFullYear()}-${month}-01`, end: `${date.getFullYear()}-${month}-${lastDay}` };
 };
-const normalizeText = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("pt-BR");
 const money = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const kg = (value: number) => `${value.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} kg`;
 const orderNumber = () => `PED-${Date.now().toString().slice(-7)}`;
@@ -132,7 +133,7 @@ function makeExistingLine(item: OrderItem, products: Product[]): DraftLine {
 }
 
 export default function OrdersPage() {
-  const { orders, bonifications, products, customers, customerGroups, paymentTerms, addOrders, addBonifications, updateOrder, deleteOrder, deleteOrders, refreshData } = useCrmStore();
+  const { orders: legacyOrders, products, customers, customerGroups, paymentTerms, addOrders, addBonifications, updateOrder, deleteOrder, deleteOrders, dataError } = useCrmStore();
   const defaultDateRange = currentMonthRange();
   const [searchDraft, setSearchDraft] = useState("");
   const [customerNameDraft, setCustomerNameDraft] = useState("");
@@ -156,17 +157,19 @@ export default function OrdersPage() {
   const [networkDetected, setNetworkDetected] = useState({ orders: 0, bonifications: 0 });
   const [networkWarnings, setNetworkWarnings] = useState<string[]>([]);
   const [showOrderModal, setShowOrderModal] = useState(false);
+  useCrmResources(["products", "payment_terms"], showOrderModal || showNetworkImportModal || showOesaImportModal || showOesaPrints);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [viewingOrder, setViewingOrder] = useState<Order | null>(null);
+  useCrmResources(["payment_terms"], !!viewingOrder);
   const [deletingOrder, setDeletingOrder] = useState<Order | null>(null);
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [selectionRecords, setSelectionRecords] = useState<Record<string, Order>>({});
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [preOrder, setPreOrder] = useState("");
   const [issueDate, setIssueDate] = useState(localDate);
   const [invoice, setInvoice] = useState("");
   const [paymentTerm, setPaymentTerm] = useState("");
-  const [orderStatus, setOrderStatus] = useState<Order["status"]>("normal");
   const [customerQuery, setCustomerQuery] = useState("");
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [productQuery, setProductQuery] = useState("");
@@ -180,22 +183,23 @@ export default function OrdersPage() {
     const customersById = new Map(customers.map((customer) => [customer.id, customer]));
     const uniqueValues = (values: string[]) => [...new Set(values.map((value) => value.trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right, "pt-BR"));
     return {
-      cities: uniqueValues([...customers.map((customer) => customer.city), ...orders.map((order) => order.customerCity ?? customersById.get(order.customerId)?.city ?? "")]),
+      cities: uniqueValues([...customers.map((customer) => customer.city), ...legacyOrders.map((order) => order.customerCity ?? customersById.get(order.customerId)?.city ?? "")]),
       segments: uniqueValues(customers.map((customer) => customer.segment ?? "")),
     };
-  }, [customers, orders]);
-  const filtered = useMemo(() => orders.filter((order) => {
-    const customer = customers.find((entry) => entry.id === order.customerId);
-    const searchable = normalizeText(`${order.preOrder} ${order.customerCode} ${order.invoice} ${customer?.document ?? ""}`);
-    return searchable.includes(normalizeText(filters.search))
-      && normalizeText(order.customerName).includes(normalizeText(filters.customerName))
-      && (!filters.city || (order.customerCity || customer?.city || "") === filters.city)
-      && (!filters.segment || customer?.segment === filters.segment)
-      && (!filters.network || customer?.groupId === filters.network)
-      && (!filters.start || order.issueDate >= filters.start)
-      && (!filters.end || order.issueDate <= filters.end);
-  }), [orders, customers, filters]);
-  const { sorted, heading } = useTableSort(filtered);
+  }, [customers, legacyOrders]);
+  const page = useRecordPage("orders", { start: filters.start, end: filters.end, query: filters.search, customerName: filters.customerName, city: filters.city ? [filters.city] : [], network: filters.network, segment: filters.segment });
+  const orders = page.rows.map(row => ({ ...row, items: [] })) as unknown as Array<Order & { itemCount?: number }>;
+  const filtered = orders;
+  const sorted = orders;
+  function heading(key: string, label: string, value: (order: Order) => unknown) {
+    void value;
+    const field = ["issueDate"].includes(key) ? key : null;
+    return <th key={key} aria-sort={field === page.sort ? page.direction === "asc" ? "ascending" : "descending" : undefined}>{field ? <button className="sort-heading" type="button" onClick={() => page.setSort(field)}>{label}{field === page.sort ? page.direction === "asc" ? " ↑" : " ↓" : " ↕"}</button> : label}</th>;
+  }
+  async function openOrderDetails(order: Order, edit: boolean) {
+    try { const detail = await getRecordDetail<Order>("orders", order.id); if (edit) openEditOrder(detail); else setViewingOrder(detail); }
+    catch (cause) { setExportError(cause instanceof Error ? cause.message : "Falha ao abrir pedido."); }
+  }
   const invalidFilterDateRange = Boolean(startDraft && endDraft && startDraft > endDraft);
   const additionalFilterCount = [customerNameDraft, cityDraft, segmentDraft, networkDraft].filter(Boolean).length;
   const hasDraftFiltersToClear = Boolean(searchDraft || customerNameDraft || cityDraft || segmentDraft || networkDraft
@@ -214,7 +218,7 @@ export default function OrdersPage() {
   const viewingNetWeight = viewingOrder?.items.reduce((sum, item) => sum + (item.netWeight ?? 0), 0) ?? 0;
   const viewingUnitCount = viewingOrder?.items.reduce((sum, item) => sum + item.unitQuantity, 0) ?? 0;
   const viewingPackageCount = viewingOrder?.items.reduce((sum, item) => sum + (item.boxQuantity ?? item.packageQuantity), 0) ?? 0;
-  const selectedOrders = orders.filter((order) => selectedOrderIds.includes(order.id));
+  const selectedOrders = selectedOrderIds.map(id => selectionRecords[id]).filter((order): order is Order => !!order);
   const allFilteredOrdersSelected = filtered.length > 0 && filtered.every((order) => selectedOrderIds.includes(order.id));
 
   function resetOrderForm() {
@@ -223,7 +227,6 @@ export default function OrdersPage() {
     setIssueDate(localDate());
     setInvoice("");
     setPaymentTerm("");
-    setOrderStatus("normal");
     setCustomerQuery("");
     setSelectedCustomer(null);
     setProductQuery("");
@@ -260,8 +263,10 @@ export default function OrdersPage() {
       setNetworkWarnings([]);
       const parsedOrders = await parseNetworkOrderPdf(new Uint8Array(await networkPdf.arrayBuffer()), setNetworkProgress);
       setNetworkDetected({ orders: parsedOrders.filter((entry) => entry.documentType === "order").length, bonifications: parsedOrders.filter((entry) => entry.documentType === "bonification").length });
-      const result = buildNetworkOrderImport(parsedOrders, customers, products, orders);
-      const bonusResult = buildNetworkBonificationImport(parsedOrders, customers, products, bonifications);
+      const numbers = parsedOrders.map(record => `${record.orderNumber}/L`);
+      const [existingOrders, existingBonuses] = await Promise.all([findImportRecords("orders", numbers), findImportRecords("bonifications", numbers)]);
+      const result = buildNetworkOrderImport(parsedOrders, customers, products, existingOrders as Order[]);
+      const bonusResult = buildNetworkBonificationImport(parsedOrders, customers, products, existingBonuses as Bonification[]);
       setNetworkPreview(result.orders);
       setNetworkBonificationsPreview(bonusResult.bonifications);
       setNetworkWarnings([...new Set([...result.warnings, ...bonusResult.warnings])]);
@@ -308,7 +313,6 @@ export default function OrdersPage() {
     setIssueDate(order.issueDate);
     setInvoice(order.invoice);
     setPaymentTerm(order.paymentTerm ?? "");
-    setOrderStatus(order.status);
     const customer = customers.find((entry) => entry.id === order.customerId) ?? null;
     setSelectedCustomer(customer);
     setCustomerQuery(customer ? `${customer.name} — ${customer.code}` : order.customerName);
@@ -452,7 +456,7 @@ export default function OrdersPage() {
       store: selectedCustomer.store,
       customerCity: selectedCustomer.city,
       paymentTerm: paymentTerm.trim(),
-      status: orderStatus,
+      status: "normal",
       items,
       totalValue: items.reduce((sum, item) => sum + (item.subtotal ?? item.packagePrice * item.packageQuantity), 0),
       totalWeight: items.reduce((sum, item) => sum + (item.grossWeight ?? item.totalWeight), 0),
@@ -461,6 +465,7 @@ export default function OrdersPage() {
       setSaving(true);
       if (editingOrder) await updateOrder(editingOrder.id, order);
       else await addOrders([order]);
+      if (editingOrder) setSelectedOrderIds(current => current.filter(id => id !== editingOrder.id));
       setShowOrderModal(false);
     } catch (error) {
       console.error("Falha ao salvar pedido.", error);
@@ -474,6 +479,7 @@ export default function OrdersPage() {
     if (!deletingOrder) return;
     try {
       await deleteOrder(deletingOrder.id);
+      setSelectedOrderIds(current => current.filter(id => id !== deletingOrder.id));
       setDeletingOrder(null);
     } catch (error) {
       console.error("Falha ao excluir pedido.", error);
@@ -502,6 +508,7 @@ export default function OrdersPage() {
   }
 
   function toggleFilteredOrderSelection(checked: boolean) {
+    if (checked) setSelectionRecords(current => ({ ...current, ...Object.fromEntries(filtered.map(order => [order.id, order])) }));
     setSelectedOrderIds((selected) => {
       if (checked) return [...new Set([...selected, ...filtered.map((order) => order.id)])];
       const filteredIds = new Set(filtered.map((order) => order.id));
@@ -510,20 +517,21 @@ export default function OrdersPage() {
   }
 
   function toggleOrderSelection(id: string, checked: boolean) {
+    if (checked) { const order = orders.find(row => row.id === id); if (order) setSelectionRecords(current => ({ ...current, [id]: order })); }
     setSelectedOrderIds((selected) => checked
       ? [...new Set([...selected, id])]
       : selected.filter((selectedId) => selectedId !== id));
   }
 
   async function downloadSingleOrder(order: Order) {
-    try { setExportError(""); await exportOrders([order]); }
+    try { setExportError(""); await exportOrders([await getRecordDetail<Order>("orders", order.id)]); }
     catch (error) { console.error("Falha ao exportar pedido.", error); setExportError("Não foi possível exportar o pedido."); }
   }
 
   async function refreshOrders() {
     setRefreshing(true);
     setExportError("");
-    try { await refreshData(); }
+    try { await page.refresh(); }
     catch (error) { console.error("Falha ao atualizar pedidos.", error); setExportError("Não foi possível atualizar os dados."); }
     finally { setRefreshing(false); }
   }
@@ -534,7 +542,7 @@ export default function OrdersPage() {
         <div className="orders-page-title"><span className="module-title-icon"><ShoppingCart size={21} /></span><h1>Pedidos</h1></div>
         <div className="orders-page-actions">
           <div className="orders-sync-control">
-            <div className="orders-firebase-badge"><span className="orders-database-icon"><Database size={15} /></span><span><strong>Firebase</strong><small>Tempo real</small></span></div>
+            <div className="orders-firebase-badge"><span className="orders-database-icon"><Database size={15} /></span><span><strong>Firebase</strong><small>Consulta por página</small></span></div>
             <button className="orders-refresh-button" onClick={() => void refreshOrders()} disabled={refreshing} title={refreshing ? "Atualizando pedidos" : "Atualizar pedidos"} aria-label={refreshing ? "Atualizando pedidos" : "Atualizar pedidos"}><RefreshCw size={14} className={refreshing ? "spin" : ""} /></button>
           </div>
           <button className="button button-outline orders-import-button" onClick={startNetworkImport}><FileText size={15} /> Importar PDF Mart Minas</button>
@@ -559,21 +567,24 @@ export default function OrdersPage() {
         </div>}
       </form>
       {invalidFilterDateRange && <div className="import-feedback feedback-warning" role="alert">A data inicial não pode ser posterior à data final.</div>}
+      {(page.error || dataError) && <div className="import-feedback feedback-warning" role="alert">{page.error || dataError}</div>}
+      {page.loading && <p role="status">Carregando pedidos...</p>}
       {exportError && <div className="import-feedback feedback-warning" role="alert">{exportError}</div>}
     </section>
 
     <section className="panel order-list-panel">
-      <div className="order-count-bar"><span>Mostrando {filtered.length} de {orders.length} pedido(s)</span>{selectedOrders.length > 0 && <div className="order-bulk-actions"><span>{selectedOrders.length} selecionado(s)</span><button type="button" className="button button-danger" onClick={() => setConfirmBulkDelete(true)}><Trash2 size={14} /> Excluir selecionados</button></div>}</div>
-      {filtered.length ? <div className="table-wrap order-table-wrap"><table><thead><tr><th className="order-select-heading"><input type="checkbox" aria-label="Selecionar todos os pedidos filtrados" checked={allFilteredOrdersSelected} onChange={(event) => toggleFilteredOrderSelection(event.target.checked)} /></th>{heading("issueDate", "Data", (r) => r.issueDate)}{heading("customerName", "Cliente", (r) => r.customerName)}{heading("customerCity", "Cidade", (r) => r.customerCity ?? customers.find((c) => c.id === r.customerId)?.city)}{heading("totalValue", "Total", (r) => r.totalValue)}{heading("totalWeight", "Peso", (r) => r.totalWeight)}{heading("items", "Itens", (r) => r.items.length)}<th className="order-actions-heading">AÇÕES</th></tr></thead><tbody>{sorted.map((order) => {
+      <div className="order-count-bar"><span>{filtered.length} pedido(s) nesta página{page.totals ? ` · ${page.totals.count} no período` : ""}</span>{selectedOrders.length > 0 && <div className="order-bulk-actions"><span>{selectedOrders.length} selecionado(s)</span><button type="button" className="button button-danger" onClick={() => setConfirmBulkDelete(true)}><Trash2 size={14} /> Excluir selecionados</button></div>}</div>
+      {filtered.length ? <div className="table-wrap order-table-wrap"><table><thead><tr><th className="order-select-heading"><input type="checkbox" aria-label="Selecionar todos os pedidos desta página" checked={allFilteredOrdersSelected} onChange={(event) => toggleFilteredOrderSelection(event.target.checked)} /></th>{heading("issueDate", "Data", (r) => r.issueDate)}{heading("customerName", "Cliente", (r) => r.customerName)}{heading("customerCity", "Cidade", (r) => r.customerCity ?? customers.find((c) => c.id === r.customerId)?.city)}{heading("totalValue", "Total", (r) => r.totalValue)}{heading("totalWeight", "Peso", (r) => r.totalWeight)}{heading("items", "Itens", (r) => r.items.length)}<th className="order-actions-heading">AÇÕES</th></tr></thead><tbody>{sorted.map((order) => {
         const customer = customers.find((entry) => entry.id === order.customerId);
         return <tr key={order.id}>
           <td className="order-select-cell"><input type="checkbox" aria-label={`Selecionar pedido ${order.preOrder}`} checked={selectedOrderIds.includes(order.id)} onChange={(event) => toggleOrderSelection(order.id, event.target.checked)} /></td>
           <td className="order-date-cell">{order.issueDate}</td>
           <td><strong className="order-customer-name">{order.customerName}</strong><small className="order-customer-code">Cód. {order.customerCode || "—"}</small></td>
-          <td>{order.customerCity || customer?.city || "—"}</td><td className="order-value">{money(order.totalValue)}</td><td>{kg(order.totalWeight)}</td><td>{order.items.length}</td>
-          <td><div className="order-row-actions"><button aria-label={`Baixar pedido ${order.preOrder}`} title="Baixar pedido" onClick={() => { void downloadSingleOrder(order); }}><Download size={15} /></button><button aria-label={`Ver pedido ${order.preOrder}`} title="Ver pedido" onClick={() => setViewingOrder(order)}><Eye size={16} /></button><button aria-label={`Editar pedido ${order.preOrder}`} title="Editar pedido" onClick={() => openEditOrder(order)}><Pencil size={15} /></button><button aria-label={`Excluir pedido ${order.preOrder}`} title="Excluir pedido" onClick={() => setDeletingOrder(order)}><Trash2 size={15} /></button></div></td>
+          <td>{order.customerCity || customer?.city || "—"}</td><td className="order-value">{money(order.totalValue)}</td><td>{kg(order.totalWeight)}</td><td>{order.itemCount ?? "—"}</td>
+          <td><div className="order-row-actions"><button aria-label={`Baixar pedido ${order.preOrder}`} title="Baixar pedido" onClick={() => { void downloadSingleOrder(order); }}><Download size={15} /></button><button aria-label={`Ver pedido ${order.preOrder}`} title="Ver pedido" onClick={() => void openOrderDetails(order, false)}><Eye size={16} /></button><button aria-label={`Editar pedido ${order.preOrder}`} title="Editar pedido" onClick={() => void openOrderDetails(order, true)}><Pencil size={15} /></button><button aria-label={`Excluir pedido ${order.preOrder}`} title="Excluir pedido" onClick={() => setDeletingOrder(order)}><Trash2 size={15} /></button></div></td>
         </tr>;
-      })}</tbody></table></div> : <div className="page-empty"><span className="page-empty-icon"><ShoppingCart size={23} /></span><strong>Nenhum pedido encontrado</strong><p>{orders.length ? "Ajuste os filtros aplicados ou cadastre um novo pedido." : products.length ? "Cadastre ou importe pedidos para acompanhar as vendas por aqui." : "Cadastre produtos primeiro para lançar pedidos."}</p>{orders.length === 0 && (products.length ? <button className="button button-primary" onClick={openCreateOrder}><Plus size={16} /> Criar primeiro pedido</button> : <a href="/produtos" className="button button-outline"><PackageCheck size={16} /> Cadastrar produtos</a>)}</div>}
+      })}</tbody></table></div> : <div className="page-empty"><span className="page-empty-icon"><ShoppingCart size={23} /></span><strong>{page.loading ? "Carregando pedidos..." : page.error ? "Falha ao carregar pedidos" : page.hasNext ? "Continue na próxima página" : "Nenhum pedido encontrado"}</strong><p>Ajuste o período e os filtros ou cadastre um novo pedido.</p><button className="button button-primary" type="button" onClick={openCreateOrder}><Plus size={16} /> Novo pedido</button></div>}
+      <RecordPagination page={page} />
     </section>
 
     {showOesaImportModal && <OesaImportModal onClose={() => setShowOesaImportModal(false)} />}
@@ -647,7 +658,6 @@ export default function OrdersPage() {
               <label className="form-field"><span>Data de emissão <i>*</i></span><span className="order-modal-input-icon"><CalendarDays size={15} /><input required type="date" value={issueDate} onChange={(event) => setIssueDate(event.target.value)} /></span></label>
               <label className="form-field"><span>Prazo do cliente</span><select value={paymentTerm} disabled={!selectedCustomer} onChange={(event) => setPaymentTerm(event.target.value)}><option value="">{selectedCustomer ? "Sem prazo definido" : "Selecione o cliente"}</option>{paymentTerm && !paymentTerms.some((term) => term.code === paymentTerm) && <option value={paymentTerm}>{paymentTerm}</option>}{paymentTerms.slice().sort((a, b) => a.code.localeCompare(b.code, "pt-BR", { numeric: true })).map((term) => <option key={term.id} value={term.code}>{term.code} — {term.term}</option>)}</select></label>
               <label className="form-field order-data-compact-field"><span>Nota fiscal</span><input value={invoice} onChange={(event) => setInvoice(event.target.value)} placeholder="Opcional" /></label>
-              <label className="form-field order-data-compact-field"><span>Status do pedido</span><select value={orderStatus} onChange={(event) => setOrderStatus(event.target.value as Order["status"])}><option value="normal">Faturado</option><option value="wallet">Em carteira</option></select></label>
             </div>
           </section>
 
@@ -713,7 +723,7 @@ export default function OrdersPage() {
             <div className="order-view-summary">
               <div><span>Número do pedido</span><strong>{viewingOrder.preOrder}</strong></div>
               <div><span>Data</span><strong>{new Date(`${viewingOrder.issueDate}T12:00:00`).toLocaleDateString("pt-BR")}</strong></div>
-              <div><span>Status</span><strong>{viewingOrder.status === "wallet" ? "Em carteira" : "Faturado"}</strong></div>
+              <div><span>Status</span><strong>Pedido</strong></div>
               <div><span>Nota fiscal</span><strong>{viewingOrder.invoice || "Não informada"}</strong></div>
               <div><span>Condição de pagamento</span><strong>{viewingPaymentTerm ? `${viewingPaymentTerm.code} — ${viewingPaymentTerm.term}` : viewingOrder.paymentTerm || "Não informada"}</strong></div>
             </div>

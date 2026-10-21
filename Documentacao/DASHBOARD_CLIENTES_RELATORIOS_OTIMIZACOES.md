@@ -1,3 +1,5 @@
+﻿> Referência histórica — versão anterior ou proposta de evolução. Este arquivo não comprova o estado atual nem a publicação no Firebase. Consulte o [índice atual](README.md), a [arquitetura](TECHNICAL.md) e o [guia de ativação](../docs/ativacao-reducao-leituras-firebase.md). Marcado em 21/10/2026.
+
 # Dashboard, Clientes e Relatórios — estado atual e melhorias
 
 ## Objetivo
@@ -95,3 +97,4 @@ O sistema já apresentou uma melhora real na eficiência de leitura, principalme
 - Para reduzir leituras Firestore ao calcular positivação e métricas históricas, considere agregar/armazenar resumos mensais (coleção de `summaries`), acessíveis em O(1) pela dashboard.
 - Evitar leituras completas de `customers` em caminhos críticos; use cache com metadata e, quando necessário, batch-get por IDs referenciados nos pedidos.
 - Mover agregações pesadas de relatórios para um endpoint server-side (Cloud Function / API) que retorne dados já agregados e paginados.
+

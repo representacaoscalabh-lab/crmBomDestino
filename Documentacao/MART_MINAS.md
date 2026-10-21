@@ -1,39 +1,49 @@
-# Acompanhamento comercial Mart Minas
+﻿# Relatórios de redes: Mart Minas e OESA – Nova Safra
 
-Página: `/relatorios/mart-minas`. A rede continua sendo definida em Configurações. As análises usam os cadastros, pedidos e bonificações já sincronizados pelo CRM, sem novas gravações ou índices no Firestore.
+Atualizado em **21/10/2026**. Rotas: `/relatorios/mart-minas` e `/relatorios/oesa-nova-safra`.
 
-## Seleção e comparações
+## Rede e carteiras
 
-O acompanhamento começa em **01/10/2026**. Períodos anteriores são excluídos do histórico e não entram como zeros na média. No mês inicial não há variação ou alertas de crescimento/queda; a média usa até três períodos anteriores disponíveis desde o início. Comparações anuais só aparecem quando a base anual estiver dentro do acompanhamento.
+Cada página utiliza seu vínculo próprio em `settings/mart_minas` ou `settings/oesa_nova_safra`, definido em Configurações. `groupId` identifica a rede e `reportName` permite personalizar o título.
 
-- Padrão: mês atual de São Paulo, nossa carteira, pedidos normais e seis meses de histórico.
-- Carteiras: nossa, outros vendedores, vendedor específico e total da rede. A atribuição considera a rede e o vendedor **atuais**, inclusive para pedidos antigos.
-- Mês atual: dia 1 até hoje; todos os períodos anteriores comparados também terminam nesse dia, limitado ao último dia de cada mês. Meses passados são comparados inteiros.
-- Média: três períodos imediatamente anteriores, incluindo meses sem registros como zero. A tela sinaliza meses sem pedidos da rede na base da média, sem afirmar que a importação está completa.
-- Variação: `(atual − anterior) / anterior × 100`. Base anterior não positiva resulta em “Sem base”.
-- Comparação anual: mesmo mês do ano anterior, com o mesmo corte de dias.
-- Os campos **De** e **Até** ativam um período personalizado, inclusive entre meses. Ambos são obrigatórios nesse modo, sem datas futuras ou início posterior ao fim. A comparação passa a usar o intervalo imediatamente anterior com o mesmo número de dias; a média usa os três intervalos anteriores, sem sobreposição. O histórico exibe seis ou doze intervalos. A comparação anual usa as mesmas datas no ano anterior, limitando 29 de fevereiro a 28 quando necessário. **Voltar ao mês** restaura a seleção mensal. A exportação respeita o modo ativo.
+O layout compartilhado está em `src/components/network-reports-page.tsx`. As opções são **Comissões**, **Crescimento**, **Produtos por loja** e **Produtos**. A seleção inicial é Comissões, mês atual de São Paulo até hoje e carteira WRRJ. O seletor permite WRRJ, Mesclado e Sul de Minas.
 
-## Lojas e produtos
+Os responsáveis e o vínculo da loja são os atuais do cadastro, inclusive para pedidos antigos. As lojas da rede podem aparecer sem pedidos para permitir analisar ausência de compra. O acompanhamento começa em **01/10/2026**.
 
-As lojas aparecem mesmo sem pedidos. A ordenação inicial prioriza perdas absolutas em kg. A tabela permite pesquisa, filtro por situação e ordenação; selecionar a loja abre o detalhamento de produtos e oportunidades de mix.
+## Comissões
 
-“Sem recompra” significa compra no período anterior e nenhuma no atual. “Retomada” exige algum pedido antigo, ausência no período anterior e pedido atual. “Primeira compra registrada” indica apenas o primeiro registro disponível, sem presumir cliente novo. A evolução das mesmas lojas inclui exclusivamente aquelas com pedidos nos dois períodos.
+A base é composta por pedidos normais do período; bonificações ficam fora. Os percentuais são configurados na rede:
 
-Intervalo habitual: mediana dos intervalos entre as últimas oito datas distintas de compra nos seis meses de calendário terminados no mês selecionado. Exige pelo menos quatro datas; alerta quando os dias sem compra superam 1,5 vez essa mediana. Não são usados pedidos posteriores ao corte.
+- `commissionPercent`: percentual da representação WRRJ.
+- `sellerCommissionPercent`: percentual do Sul de Minas.
+- `sellerCommissionBase`: `orders` ou `representation`.
 
-Produtos são consolidados pelo `productId`, unificando caixa e meia caixa. Peso por produto usa `item.totalWeight`, unidades usam `unitQuantity` e valor usa `subtotal` (ou o cálculo de embalagem com desconto quando ausente). Totais de lojas usam os totais dos pedidos; inconsistências de origem podem causar divergências com os itens. Participação do produto é calculada sobre o peso dos itens.
+Cada loja gera somente a comissão de seu responsável. A base da loja é somada e arredondada em centavos antes de calcular a comissão. Se a base externa for `representation`, a comissão de representação é apenas referência para o percentual externo e não vira comissão WRRJ adicional.
 
-Oportunidades de mix mostram até dez produtos comprados por outras lojas selecionadas e ausentes na loja no período, ordenados por kg da carteira. Não são previsão de demanda ou confirmação de disponibilidade.
+Os cards de resumo usam a rede completa no período e apresentam WRRJ, Sul de Minas e o consolidado. A tabela segue a carteira e os filtros escolhidos. Pesquisa, cidade e atividade refinam as linhas; ausência de percentual é apresentada como pendência, sem assumir uma taxa.
 
-## Bonificações e exportação
+Na dashboard, o bloco **Comissões Mart Minas** usa apenas Mart Minas, soma as duas carteiras e mostra cada comissão separada. Os outros indicadores da dashboard mantêm seu recorte WRRJ.
 
-Bonificações respeitam período e carteira, sem compor peso ou valor comprado. A relação de kg bonificados/kg comprado só aparece para pedidos normais com peso positivo. Bonificações não são filtradas pela situação do pedido, pois não têm esse atributo.
+## Crescimento
 
-A exportação XLSX contém oito abas: Resumo, Evolução, Lojas, Produtos, Produtos por loja, Pedidos, Bonificações e Responsáveis. Todas as abas e a tabela por responsável respeitam o filtro de dados: somente nossos dados (padrão), mesclados, somente outros vendedores ou vendedor específico. Pesquisas locais nas tabelas não restringem a exportação, que inclui a carteira e o histórico selecionados.
+A análise compara peso atual com a média dos meses anteriores selecionados. Até três meses anteriores disponíveis desde outubro de 2026 podem compor a média. Meses sem compras contam como zero quando fazem parte da comparação; meses inexistentes antes do início do acompanhamento não são incluídos.
 
-Os dados medem pedidos às lojas. Não medem venda ao consumidor, estoque, margem ou faturamento confirmado. Preço médio/kg pode variar por preço e composição do mix.
+A média é a soma dividida pela quantidade de meses ativos. A variação usa `(peso atual − média) / média × 100` quando a base é positiva. Sem meses de comparação ou sem base positiva, a tela indica a ausência de comparação em vez de fabricar crescimento percentual.
 
-## Validação
+## Produtos por loja
 
-`node --test tests/mart-minas-analytics.test.mjs` verifica cortes de período, média, ano anterior, carteira, bonificações, lojas sem compra, retomadas, consolidação de produtos, mediana de frequência, datas, XLSX e renderização do painel com base vazia ou preenchida.
+Consolida caixa e meia caixa pelo produto canônico. Exibe unidades, peso, valor, comparação e histórico por loja, com detalhamento dos produtos e exportação. O mês é selecionado com corte até a data final; o mês anterior comparável respeita o dia disponível.
+
+Classificações como Sem recompra, Retomou a compra e Primeira compra registrada são baseadas no histórico disponível. Não significam confirmação de estoque, demanda futura ou cliente novo. O histórico necessário é consultado até a data final, sem incluir pedidos futuros.
+
+## Produtos e exportações
+
+A visão Produtos consolida o catálogo da rede, embalagens, peso, valores e referências de preço dos pedidos. Cada componente possui sua própria exportação e escopo; não assumir que as quatro visões geram a antiga exportação única de oito abas.
+
+Valores representam pedidos registrados. Os totais dos pedidos podem diferir da soma dos itens se os dados de origem estiverem inconsistentes. Bonificações são analisadas separadamente na central de relatórios.
+
+## Consultas e validação
+
+As consultas ficam delimitadas ao intervalo necessário. Comissões e Produtos usam o período escolhido; visões que dependem de histórico consultam desde o início do acompanhamento até o corte. O cache compartilha consultas repetidas. As configurações de cada rede têm assinatura compartilhada por sessão.
+
+Os testes de `tests/commission.test.mjs`, `tests/mart-minas-analytics.test.mjs` e `tests/store-products.test.mjs` cobrem cálculos, carteiras, isolamento entre redes, datas, produtos, exportações e renderização. Bibliotecas analíticas antigas ainda presentes no código não significam que todos os seus controles estejam na página atual.

@@ -19,14 +19,16 @@ export function calculateSellerCommission(base: number, representation: number, 
   return Math.round(cents * percent / 100) / 100;
 }
 
-export function buildNetworkCommission(stores: StoreResult[], percent: number, sellerPercent?: number, sellerBase?: "orders" | "representation"): CommissionRow[] {
+export function buildNetworkCommission(stores: Array<Pick<StoreResult, "customer" | "seller"> & { current: Pick<StoreResult["current"], "revenue" | "orders"> }>, percent: number, sellerPercent?: number, sellerBase?: "orders" | "representation"): CommissionRow[] {
   if (!Number.isFinite(percent) || percent < 0 || percent > 100) throw new Error("Cadastre uma comissão de 0 a 100% para a rede.");
   return stores.map(({ customer, seller, current }) => {
     if (!Number.isFinite(current.revenue)) throw new Error(`Valor de pedidos inválido na loja ${customer.name}.`);
     const baseCents = Math.round(current.revenue * 100);
-    const commission = Math.round(baseCents * percent / 100) / 100;
-    const sellerCommission = calculateSellerCommission(baseCents / 100, commission, sellerPercent, sellerBase);
-    return { id: customer.id, name: customer.name, code: customer.code, store: customer.store, city: customer.city, document: customer.document ?? "", seller: seller || "Representação WRRJ", orders: current.orders, base: baseCents / 100, percent, commission, sellerPercent: sellerCommission === null ? null : sellerPercent!, sellerCommission };
+    const representation = Math.round(baseCents * percent / 100) / 100;
+    const assignedSeller = !!seller.trim();
+    const commission = assignedSeller ? 0 : representation;
+    const sellerCommission = assignedSeller ? calculateSellerCommission(baseCents / 100, representation, sellerPercent, sellerBase) : 0;
+    return { id: customer.id, name: customer.name, code: customer.code, store: customer.store, city: customer.city, document: customer.document ?? "", seller: seller || "Representação WRRJ", orders: current.orders, base: baseCents / 100, percent: assignedSeller ? 0 : percent, commission, sellerPercent: !assignedSeller ? 0 : sellerCommission === null ? null : sellerPercent!, sellerCommission };
   });
 }
 

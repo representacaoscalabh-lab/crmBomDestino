@@ -3,8 +3,10 @@
 import { useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Eye, FileText, Filter, Gift, PackageCheck, Pencil, Plus, Search, Trash2, X } from "lucide-react";
-import { useTableSort } from "@/components/sort-heading";
-import { useCrmStore } from "@/lib/store";
+import { RecordPagination } from "@/components/record-pagination";
+import { getRecordDetail, useRecordPage } from "@/lib/use-record-page";
+import { currentRecordMonth } from "@/lib/record-query";
+import { useCrmStore, useCrmResources } from "@/lib/store";
 import { getExternalCustomerIds } from "@/lib/dashboard-scope";
 import { getPackageValues } from "@/lib/product-packaging";
 import type { Bonification, Customer, OrderItem, Product } from "@/lib/types";
@@ -17,6 +19,19 @@ const dateToday = () => {
 const money = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const kg = (value: number) => `${value.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} kg`;
 const normalizeText = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("pt-BR");
+
+function BonusMultiFilter({ label, options, selected, onChange }: { label: string; options: string[]; selected: string[]; onChange: (values: string[]) => void }) {
+  const [search, setSearch] = useState("");
+  const visible = options.filter(option => normalizeText(option).includes(normalizeText(search)));
+  return <div className="filter-field"><span>{label}</span><details className="bonus-multi" onKeyDown={event => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }} onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false; }}>
+    <summary>{selected.length ? `${selected.length} selecionado(s)` : label === "Cidades" ? "Todas as cidades" : "Todos os motivos"}<span aria-hidden="true">⌄</span></summary>
+    <div className="bonus-multi-menu">
+      <div className="search-field"><Search size={14} /><input aria-label={`Buscar ${label.toLocaleLowerCase("pt-BR")}`} placeholder="Buscar opção..." value={search} onChange={event => setSearch(event.target.value)} onKeyDown={event => { if (event.key === "Enter") event.preventDefault(); }} /></div>
+      <div className="bonus-multi-tools"><button type="button" onClick={() => onChange([...new Set([...selected, ...visible])])}>Selecionar visíveis</button><button type="button" onClick={() => onChange([])}>Limpar</button></div>
+      <div className="bonus-multi-options">{visible.map(option => <label key={option}><input type="checkbox" checked={selected.includes(option)} onChange={() => onChange(selected.includes(option) ? selected.filter(value => value !== option) : [...selected, option])} /><span>{option}</span></label>)}{!visible.length && <p>Nenhuma opção encontrada.</p>}</div>
+    </div>
+  </details></div>;
+}
 
 function makeBonusItem(product: Product, packageKind: OrderItem["packageKind"], packageQuantity: number): OrderItem {
   const pack = getPackageValues(product, packageKind === "Meia caixa");
@@ -43,19 +58,20 @@ function makeBonusItem(product: Product, packageKind: OrderItem["packageKind"], 
 }
 
 export default function BonificationsPage() {
-  const { bonifications: allBonifications, customers, customerGroups, products, addBonification, updateBonification, deleteBonification } = useCrmStore();
-  const [portfolio, setPortfolio] = useState("ours");
+  const { customers, customerGroups, products, dataError, addBonification, updateBonification, deleteBonification } = useCrmStore();
+  const [selectedRecords, setSelectedRecords] = useState<Map<string, Bonification>>(() => new Map());
+  const selectedIds = new Set(selectedRecords.keys());
+  const monthRange = currentRecordMonth();
+  const [portfolio, setPortfolio] = useState("all");
   const externalCustomerIds = useMemo(() => getExternalCustomerIds(customers, customerGroups), [customers, customerGroups]);
-  const bonifications = useMemo(() => allBonifications.filter((bonus) => portfolio === "external"
-    ? externalCustomerIds.has(bonus.customerId)
-    : !externalCustomerIds.has(bonus.customerId)), [allBonifications, externalCustomerIds, portfolio]);
   const [query, setQuery] = useState("");
-  const [cityFilter, setCityFilter] = useState("");
-  const [reasonFilter, setReasonFilter] = useState("");
-  const [startDateFilter, setStartDateFilter] = useState("");
-  const [endDateFilter, setEndDateFilter] = useState("");
-  const [appliedFilters, setAppliedFilters] = useState({ query: "", city: "", reason: "", start: "", end: "" });
+  const [cityFilter, setCityFilter] = useState<string[]>([]);
+  const [reasonFilter, setReasonFilter] = useState<string[]>([]);
+  const [startDateFilter, setStartDateFilter] = useState(monthRange.start);
+  const [endDateFilter, setEndDateFilter] = useState(monthRange.end);
+  const [appliedFilters, setAppliedFilters] = useState({ query: "", city: [] as string[], reason: [] as string[], start: monthRange.start, end: monthRange.end });
   const [showForm, setShowForm] = useState(false);
+  useCrmResources(["products"], showForm);
   const [editing, setEditing] = useState<Bonification | null>(null);
   const [viewing, setViewing] = useState<Bonification | null>(null);
   const [deleting, setDeleting] = useState<Bonification | null>(null);
@@ -71,26 +87,41 @@ export default function BonificationsPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const cities = useMemo(() => [...new Set(bonifications.map((bonus) => (bonus.customerCity || customers.find((customer) => customer.id === bonus.customerId)?.city || "").trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right, "pt-BR")), [bonifications, customers]);
-  const reasons = useMemo(() => [...new Set(bonifications.map((bonus) => bonus.reason.trim()).filter(Boolean))].sort((left, right) => left.localeCompare(right, "pt-BR")), [bonifications]);
-  const invalidDateRange = Boolean(startDateFilter && endDateFilter && startDateFilter > endDateFilter);
-  const filtered = useMemo(() => {
-    const normalizedQuery = normalizeText(appliedFilters.query);
-    return bonifications
-      .filter((bonus) => {
-        const customerCity = (bonus.customerCity || customers.find((customer) => customer.id === bonus.customerId)?.city || "").trim();
-        const matchesQuery = normalizeText(`${bonus.bonusNumber} ${bonus.customerName} ${bonus.customerCode} ${bonus.store} ${bonus.reason} ${bonus.notes}`).includes(normalizedQuery);
-        const matchesCity = !appliedFilters.city || customerCity === appliedFilters.city;
-        const matchesReason = !appliedFilters.reason || bonus.reason.trim() === appliedFilters.reason;
-        const matchesStart = !appliedFilters.start || bonus.issueDate >= appliedFilters.start;
-        const matchesEnd = !appliedFilters.end || bonus.issueDate <= appliedFilters.end;
-        return matchesQuery && matchesCity && matchesReason && matchesStart && matchesEnd;
-      })
-      .sort((left, right) => right.issueDate.localeCompare(left.issueDate));
-  }, [bonifications, customers, appliedFilters]);
-  const { sorted, heading } = useTableSort(filtered);
-  const activeFilterCount = Object.values(appliedFilters).filter(Boolean).length;
-  const hasFilters = Object.values(appliedFilters).some(Boolean) || Boolean(query || cityFilter || reasonFilter || startDateFilter || endDateFilter);
+  const page = useRecordPage("bonifications", { ...appliedFilters, portfolio });
+  const filtered = page.rows.map(row => ({ ...row, items: [] })) as unknown as Array<Bonification & { itemCount?: number }>;
+  const sorted = filtered;
+  const cities = [...new Set([...customers.map(customer => customer.city), ...filtered.map(bonus => bonus.customerCity || "")].filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const reasons = [...new Set(["Amostra", "Cortesia", "Bonificação", "Bonificação sem incidência de custo", ...filtered.map(bonus => bonus.reason)].filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const invalidDateRange = !startDateFilter || !endDateFilter || startDateFilter > endDateFilter;
+  const selectedBonifications = [...selectedRecords.values()];
+  const selectedVisibleCount = filtered.filter(bonus => selectedIds.has(bonus.id)).length;
+  const allVisibleSelected = filtered.length > 0 && selectedVisibleCount === filtered.length;
+  function toggleSelection(id: string) {
+    setSelectedRecords(current => {
+      const next = new Map(current);
+      if (next.has(id)) next.delete(id); else { const row = filtered.find(item => item.id === id); if (row) next.set(id, row); }
+      return next;
+    });
+  }
+  function toggleAllVisible() {
+    setSelectedRecords(current => {
+      const next = new Map(current);
+      for (const bonus of filtered) { if (allVisibleSelected) next.delete(bonus.id); else next.set(bonus.id, bonus); }
+      return next;
+    });
+  }
+  function heading(key: string, label: string, value: (bonus: Bonification) => unknown) {
+    void value;
+    const field = ({ date: "issueDate" } as Record<string, string>)[key];
+    return <th key={key} aria-sort={field === page.sort ? page.direction === "asc" ? "ascending" : "descending" : undefined}>{field ? <button className="sort-heading" type="button" onClick={() => page.setSort(field)}>{label}{field === page.sort ? page.direction === "asc" ? " ↑" : " ↓" : " ↕"}</button> : label}</th>;
+  }
+  async function openDetails(bonus: Bonification, edit: boolean) {
+    setError("");
+    try { const record = await getRecordDetail<Bonification>("bonifications", bonus.id); if (edit) openEdit(record); else setViewing(record); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Falha ao abrir bonificação."); }
+  }
+  const activeFilterCount = [appliedFilters.query, ...appliedFilters.city, ...appliedFilters.reason].filter(Boolean).length + Number(appliedFilters.start !== monthRange.start || appliedFilters.end !== monthRange.end);
+  const hasFilters = activeFilterCount > 0 || Boolean(query || cityFilter.length || reasonFilter.length || startDateFilter !== monthRange.start || endDateFilter !== monthRange.end);
 
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -99,11 +130,11 @@ export default function BonificationsPage() {
 
   function clearFilters() {
     setQuery("");
-    setCityFilter("");
-    setReasonFilter("");
-    setStartDateFilter("");
-    setEndDateFilter("");
-    setAppliedFilters({ query: "", city: "", reason: "", start: "", end: "" });
+    setCityFilter([]);
+    setReasonFilter([]);
+    setStartDateFilter(monthRange.start);
+    setEndDateFilter(monthRange.end);
+    setAppliedFilters({ query: "", city: [] as string[], reason: [] as string[], start: monthRange.start, end: monthRange.end });
   }
 
   const totalWeight = items.reduce((sum, item) => sum + (item.grossWeight ?? item.totalWeight), 0);
@@ -200,7 +231,7 @@ export default function BonificationsPage() {
     setSaving(true);
     setError("");
     try {
-      if (editing) await updateBonification(editing.id, record);
+      if (editing) { await updateBonification(editing.id, record); setSelectedRecords(current => { if (!current.has(editing.id)) return current; return new Map(current).set(editing.id, { ...record, id: editing.id }); }); }
       else await addBonification(record);
       closeForm();
     } catch (cause) {
@@ -216,6 +247,7 @@ export default function BonificationsPage() {
     setSaving(true);
     try {
       await deleteBonification(deleting.id);
+      setSelectedRecords(current => { const next = new Map(current); next.delete(deleting.id); return next; });
       setDeleting(null);
     } catch (cause) {
       console.error("Falha ao excluir bonificação.", cause);
@@ -236,51 +268,57 @@ export default function BonificationsPage() {
         <div className="orders-page-title"><span className="module-title-icon"><Gift size={21} /></span><div><h1>Bonificações</h1><p className="bonus-page-description">Amostras e cortesias, em um só lugar.</p></div></div>
         <div className="orders-page-actions"><Link href="/exportacao" className="button button-outline"><FileText size={16} /> Importar PDF</Link><button type="button" className="button button-primary" onClick={openCreate}><Plus size={16} /> Nova bonificação</button></div>
       </div>
-      <label className="filter-field"><span>Carteira das bonificações</span><select value={portfolio} onChange={(event) => { setPortfolio(event.target.value); clearFilters(); }}><option value="ours">Representação WRRJ</option><option value="external">Outros vendedores</option></select></label>
-      <p className="bonus-page-description">Os totais consideram somente a carteira selecionada, conforme o vendedor atual de cada loja na rede.</p>
+      <div className="bonus-scope-bar"><div><h2>Visão das bonificações</h2><p>{portfolio === "all" ? "WRRJ e Sul de Minas juntos, com os totais consolidados." : "Totais da carteira selecionada."}</p></div><div className="bonus-scope-switch" role="group" aria-label="Carteira das bonificações">{[{ id: "all", label: "Mesclado" }, { id: "ours", label: "WRRJ" }, { id: "external", label: "Sul de Minas" }].map(option => <button type="button" key={option.id} aria-pressed={portfolio === option.id} onClick={() => { setSelectedRecords(new Map()); setPortfolio(option.id); }}>{option.label}</button>)}</div></div>
       <form className="order-filter-card bonus-filter-card" onSubmit={applyFilters}>
-        <div className="order-filter-heading"><span className="order-filter-icon"><Filter size={17} /></span><div><h2>Filtros</h2><p>Encontre por cliente, controle ou período.</p></div><span className="order-filter-count">{activeFilterCount ? `${activeFilterCount} filtro(s) ativo(s)` : "Sem filtros ativos"}</span></div>
+        <div className="order-filter-heading"><span className="order-filter-icon"><Filter size={17} /></span><div><h2>Filtros</h2><p>Combine busca e período com várias cidades e motivos.</p></div><span className="order-filter-count">{activeFilterCount ? `${activeFilterCount} filtro(s) ativo(s)` : "Sem filtros ativos"}</span></div>
         <div className="bonus-filter-grid">
           <label className="filter-field"><span>Controle ou cliente</span><div className="search-field"><Search size={16} /><input aria-label="Buscar bonificações" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Número, nome, código ou observação" /></div></label>
-          <label className="filter-field"><span>Cidade</span><select aria-label="Filtrar bonificações por cidade" value={cityFilter} onChange={(event) => setCityFilter(event.target.value)}><option value="">Todas as cidades</option>{cities.map((city) => <option key={city} value={city}>{city}</option>)}</select></label>
-          <label className="filter-field"><span>Motivo</span><select aria-label="Filtrar bonificações por motivo" value={reasonFilter} onChange={(event) => setReasonFilter(event.target.value)}><option value="">Todos os motivos</option>{reasons.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+          <BonusMultiFilter label="Cidades" options={cities} selected={cityFilter} onChange={setCityFilter} />
+          <BonusMultiFilter label="Motivos" options={reasons} selected={reasonFilter} onChange={setReasonFilter} />
           <label className="filter-field"><span>Período</span><div className="order-date-range"><div className="date-input-wrap"><input aria-label="Data inicial das bonificações" type="date" max={endDateFilter || undefined} value={startDateFilter} onChange={(event) => setStartDateFilter(event.target.value)} /></div><span aria-hidden="true">até</span><div className="date-input-wrap"><input aria-label="Data final das bonificações" type="date" min={startDateFilter || undefined} value={endDateFilter} onChange={(event) => setEndDateFilter(event.target.value)} /></div></div></label>
         </div>
         <div className="order-filter-actions"><span>Valor de referência · não compõe faturamento</span><div><button type="submit" className="button button-primary" disabled={invalidDateRange}>Aplicar filtros</button><button type="button" className="button button-light" onClick={clearFilters} disabled={!hasFilters}><X size={14} /> Limpar filtros</button></div></div>
+        {activeFilterCount > 0 && <div className="bonus-active-filters" aria-label="Filtros aplicados"><span>Aplicados</span>{appliedFilters.query && <button type="button" onClick={() => { setQuery(""); setAppliedFilters(current => ({ ...current, query: "" })); }}>Busca: {appliedFilters.query}<X size={12} /></button>}{(["city", "reason"] as const).flatMap(key => appliedFilters[key].map(value => <button type="button" key={`${key}-${value}`} aria-label={`Remover filtro ${value}`} onClick={() => { const next = appliedFilters[key].filter(item => item !== value); if (key === "city") setCityFilter(next); else setReasonFilter(next); setAppliedFilters(current => ({ ...current, [key]: next })); }}>{value}<X size={12} /></button>))}{(appliedFilters.start !== monthRange.start || appliedFilters.end !== monthRange.end) && <button type="button" onClick={() => { setStartDateFilter(monthRange.start); setEndDateFilter(monthRange.end); setAppliedFilters(current => ({ ...current, start: monthRange.start, end: monthRange.end })); }}>Período: {appliedFilters.start.split("-").reverse().join("/")} a {appliedFilters.end.split("-").reverse().join("/")}<X size={12} /></button>}</div>}
         {invalidDateRange && <p className="bonus-filter-error" role="alert">A data inicial não pode ser posterior à data final.</p>}
       </form>
     </section>
 
     <div className="bonus-summary" aria-label="Resumo dos resultados filtrados">
-      <article><span className="bonus-summary-icon"><Gift size={19} /></span><div><span>Bonificações</span><strong>{filtered.length}</strong></div></article>
-      <article><span className="bonus-summary-icon"><PackageCheck size={19} /></span><div><span>Peso bonificado</span><strong>{kg(filtered.reduce((sum, bonus) => sum + bonus.totalWeight, 0))}</strong></div></article>
-      <article><span className="bonus-summary-currency">R$</span><div><span>Valor de referência</span><strong>{money(filtered.reduce((sum, bonus) => sum + bonus.totalValue, 0))}</strong></div></article>
+      <article><span className="bonus-summary-icon"><Gift size={19} /></span><div><span>Bonificações</span><strong>{page.totals ? page.totals.count : "—"}</strong></div></article>
+      <article><span className="bonus-summary-icon"><PackageCheck size={19} /></span><div><span>Peso bonificado</span><strong>{page.totals ? kg(page.totals.weight) : "—"}</strong></div></article>
+      <article><span className="bonus-summary-currency">R$</span><div><span>Valor de referência</span><strong>{page.totals ? money(page.totals.value) : "—"}</strong></div></article>
     </div>
 
+    {!page.totals && <div className="bonus-total-prompt"><span>{page.calculatingTotals ? "Calculando os totais de todos os resultados…" : "Os totais completos são calculados sob demanda quando há filtros adicionais."}</span><button className="button button-outline" type="button" disabled={page.calculatingTotals} onClick={() => void page.calculateTotals()}>Calcular totais do filtro</button></div>}
+    {(page.error || page.totalError || dataError) && <p className="import-feedback feedback-warning" role="alert">{page.error || page.totalError || dataError}</p>}
     {error && !showForm && <div className="import-feedback feedback-warning" role="alert">{error}</div>}
     <section className="panel order-list-panel bonus-list-panel" aria-label="Lista de bonificações">
-      <div className="order-count-bar"><span>Mostrando <strong>{filtered.length}</strong> de {bonifications.length} bonificação(ões)</span><span className="bonus-list-hint">Ordene clicando nas colunas</span></div>
+      <div className="order-count-bar"><span><strong>{filtered.length}</strong> nesta página{page.totals ? ` · ${page.totals.count} no filtro` : ""}</span><span className="bonus-list-hint">Selecione uma ou todas desta página</span></div>
+      {selectedBonifications.length > 0 && <div className="bonus-selection-bar" role="status"><div><strong>{selectedBonifications.length} selecionada(s)</strong><span>{kg(selectedBonifications.reduce((sum, bonus) => sum + bonus.totalWeight, 0))} · {money(selectedBonifications.reduce((sum, bonus) => sum + bonus.totalValue, 0))} em valor de referência</span></div><button type="button" onClick={() => setSelectedRecords(new Map())}><X size={14} /> Limpar seleção</button></div>}
       {filtered.length > 0 ? <div className="table-wrap bonification-table-wrap"><table><thead><tr>
+        <th className="bonus-checkbox-cell"><input type="checkbox" aria-label="Selecionar todas as bonificações desta página" checked={allVisibleSelected} ref={node => { if (node) node.indeterminate = selectedVisibleCount > 0 && !allVisibleSelected; }} onChange={toggleAllVisible} /></th>
         {heading("date", "Data", (bonus) => bonus.issueDate)}
         {heading("control", "Controle", (bonus) => bonus.bonusNumber)}
         {heading("customer", "Cliente / loja", (bonus) => bonus.customerName)}
         {heading("city", "Cidade", (bonus) => bonus.customerCity || customerFor(bonus)?.city)}
-        {heading("seller", "Vendedor", (bonus) => customerGroups.find((group) => group.id === customerFor(bonus)?.groupId)?.externalStoreSellers?.[bonus.customerId] || "Representação WRRJ")}
+        {heading("seller", "Responsável", (bonus) => customerGroups.find((group) => group.id === customerFor(bonus)?.groupId)?.externalStoreSellers?.[bonus.customerId] || "Representação WRRJ")}
         {heading("reason", "Motivo", (bonus) => bonus.reason)}
         {heading("items", "Itens", (bonus) => bonus.items.length)}
         {heading("weight", "Peso", (bonus) => bonus.totalWeight)}
         {heading("value", "Valor ref.", (bonus) => bonus.totalValue)}
         <th className="bonus-actions-heading">Ações</th>
-      </tr></thead><tbody>{sorted.map((bonus) => <tr key={bonus.id}>
+      </tr></thead><tbody>{sorted.map((bonus) => <tr key={bonus.id} className={selectedIds.has(bonus.id) ? "bonus-row-selected" : undefined}>
+        <td className="bonus-checkbox-cell"><input type="checkbox" aria-label={`Selecionar bonificação ${bonus.bonusNumber}`} checked={selectedIds.has(bonus.id)} onChange={() => toggleSelection(bonus.id)} /></td>
         <td className="bonus-date-cell">{new Date(`${bonus.issueDate}T12:00:00`).toLocaleDateString("pt-BR")}</td>
         <td><span className="bonus-control-code">{bonus.bonusNumber}</span></td>
         <td className="bonus-customer-cell"><strong>{bonus.customerName}</strong><small>Cód. {bonus.customerCode || "—"}{bonus.store ? ` · Loja ${bonus.store}` : ""}</small></td>
         <td>{bonus.customerCity || customerFor(bonus)?.city || "—"}</td>
-        <td>{customerGroups.find((group) => group.id === customerFor(bonus)?.groupId)?.externalStoreSellers?.[bonus.customerId] || "Representação WRRJ"}</td>
+        <td><span className={`bonus-portfolio-tag ${externalCustomerIds.has(bonus.customerId) ? "is-external" : ""}`}>{externalCustomerIds.has(bonus.customerId) ? "Sul de Minas" : "WRRJ"}</span></td>
         <td><span className="bonus-reason-tag">{bonus.reason || "—"}</span></td>
-        <td>{bonus.items.length}</td><td className="bonus-numeric-cell">{kg(bonus.totalWeight)}</td><td className="bonus-numeric-cell bonus-value-cell">{money(bonus.totalValue)}</td>
-        <td><div className="order-row-actions"><button type="button" aria-label={`Visualizar ${bonus.bonusNumber}`} title="Visualizar" onClick={() => setViewing(bonus)}><Eye size={16} /></button><button type="button" aria-label={`Editar ${bonus.bonusNumber}`} title="Editar" onClick={() => openEdit(bonus)}><Pencil size={15} /></button><button type="button" className="bonus-delete-action" aria-label={`Excluir ${bonus.bonusNumber}`} title="Excluir" onClick={() => setDeleting(bonus)}><Trash2 size={15} /></button></div></td>
-      </tr>)}</tbody></table></div> : <div className="page-empty bonus-empty"><span className="page-empty-icon"><Gift size={26} /></span><strong>{bonifications.length ? "Nenhuma bonificação encontrada" : "Sua primeira bonificação começa aqui"}</strong><p>{bonifications.length ? "Ajuste os filtros para encontrar o registro que procura." : "Registre uma amostra ou cortesia para acompanhar os produtos entregues."}</p>{bonifications.length ? <button type="button" className="button button-outline" onClick={clearFilters}><X size={14} /> Limpar filtros</button> : <button type="button" className="button button-primary" onClick={openCreate}><Plus size={16} /> Nova bonificação</button>}</div>}
+        <td>{bonus.itemCount ?? "—"}</td><td className="bonus-numeric-cell">{kg(bonus.totalWeight)}</td><td className="bonus-numeric-cell bonus-value-cell">{money(bonus.totalValue)}</td>
+        <td><div className="order-row-actions"><button type="button" aria-label={`Visualizar ${bonus.bonusNumber}`} title="Visualizar" onClick={() => void openDetails(bonus, false)}><Eye size={16} /></button><button type="button" aria-label={`Editar ${bonus.bonusNumber}`} title="Editar" onClick={() => void openDetails(bonus, true)}><Pencil size={15} /></button><button type="button" className="bonus-delete-action" aria-label={`Excluir ${bonus.bonusNumber}`} title="Excluir" onClick={() => setDeleting(bonus)}><Trash2 size={15} /></button></div></td>
+      </tr>)}</tbody></table></div> : <div className="page-empty bonus-empty"><span className="page-empty-icon"><Gift size={26} /></span><strong>{page.loading ? "Carregando bonificações…" : page.error ? "Não foi possível carregar" : page.hasNext ? "Continue a busca na próxima página" : "Nenhuma bonificação encontrada"}</strong><p>{page.hasNext ? "Há mais registros no período para verificar com estes filtros." : "Ajuste os filtros ou registre uma nova bonificação."}</p></div>}
+      <RecordPagination page={page} />
     </section>
 
     {showForm && <div className="modal-backdrop order-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) closeForm(); }}>

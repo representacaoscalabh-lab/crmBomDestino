@@ -7,7 +7,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "CRM Bom Destino",
-  icons: { icon: "/fav.icon.png" },
+  icons: {
+    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }, { url: "/fav.icon.png?v=2", type: "image/png" }],
+    apple: "/apple-touch-icon.png",
+  },
   description: "Gestão comercial Bom Destino Laticínios de Búfala",
 };
 

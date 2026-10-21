@@ -199,51 +199,31 @@ test("painel renderiza com dados e com base vazia sem números inválidos", () =
   }
 });
 
-test("página completa abre no primeiro mês sem acessar período anterior inexistente", () => {
-  const sorting = loadModule("../src/components/sort-heading.tsx", nodeRequire);
-  const analysis = loadModule("../src/components/mart-minas-analysis.tsx", (id) => id === "@/lib/mart-minas-analytics" ? exports : id === "@/components/sort-heading" ? sorting : nodeRequire(id));
-  const mocks = {
-    "@/lib/auth": { useAuth: () => ({ crmUser: { role: "admin" } }) },
-    "@/lib/store": { useCrmStore: () => ({ customers, customerGroups: [group], orders: [order("inicial", "c1", "2026-10-10", 50)], bonifications: [] }) },
-    "@/lib/mart-minas-settings": { useMartMinasSettings: () => ({ groupId: "g1", loading: false, error: "" }) },
-    "@/lib/mart-minas-analytics": { ...exports, saoPauloToday: () => "2026-10-16" },
-    "@/components/mart-minas-analysis": analysis,
-    "@/components/network-commission-report": { NetworkCommissionReport: () => null },
-    "@/lib/mart-minas-export": {},
-    "./report.css": {},
-  };
-  const { default: Page } = loadModule("../src/app/relatorios/mart-minas/page.tsx", (id) => id in mocks ? mocks[id] : nodeRequire(id));
-  const html = renderToStaticMarkup(React.createElement(Page));
-  assert.match(html, /Início do acompanhamento: outubro de 2026/);
-  assert.match(html, /01\/10\/2026/);
-  assert.doesNotMatch(html, /comparado a|NaN|undefined/);
-});
-
-test("relatorio OESA usa configuracao propria e permite rede ainda nao configurada", () => {
-  const sorting = loadModule("../src/components/sort-heading.tsx", nodeRequire);
-  const analysis = loadModule("../src/components/mart-minas-analysis.tsx", (id) => id === "@/lib/mart-minas-analytics" ? exports : id === "@/components/sort-heading" ? sorting : nodeRequire(id));
+test("relatorio OESA usa configuracao propria no mesmo layout sem misturar lojas", () => {
   let selected = "oesa";
+  let captured;
   const oesaGroup = { ...group, id: "oesa", name: "Nova Safra" };
   const mocks = {
-    "@/lib/auth": { useAuth: () => ({ crmUser: { role: "admin" } }) },
-    "@/lib/store": { useCrmStore: () => ({ customers: customers.map((customer) => ({ ...customer, groupId: "oesa" })), customerGroups: [group, oesaGroup], orders: [order("oesa-1", "c1", "2026-10-10", 50)], bonifications: [] }) },
-    "@/lib/oesa-nova-safra-settings": { useOesaNovaSafraSettings: () => ({ groupId: selected, loading: false, error: "" }) },
-    "@/lib/mart-minas-analytics": { ...exports, saoPauloToday: () => "2026-10-16" },
-    "@/components/mart-minas-analysis": analysis,
-    "@/components/network-commission-report": { NetworkCommissionReport: () => null },
-    "@/lib/oesa-nova-safra-export": {},
-    "../mart-minas/report.css": {},
+    "@/lib/store": { useCrmStore: () => ({ customers: [...customers, { ...customers[0], id: "oesa-c1", groupId: "oesa" }], customerGroups: [group, oesaGroup], orders: [order("oesa-1", "oesa-c1", "2026-10-10", 50), order("mart-1", "c1", "2026-10-10", 500)], products: [] }) },
+    "@/lib/oesa-nova-safra-settings": { useOesaNovaSafraSettings: () => ({ groupId: selected, reportName: "", loading: false, error: "" }) },
+    "@/lib/mart-minas-analytics": { saoPauloToday: () => "2026-10-20" },
+    "@/components/network-commission-report": { NetworkCommissionReport: props => { captured = props; return props.sidebar; } },
+    "@/components/store-growth-report": { StoreGrowthReport: () => null },
+    "@/components/store-products-report": { StoreProductsReport: () => null },
+    "@/components/network-products-report": { NetworkProductsReport: () => null },
   };
-  const { default: Page } = loadModule("../src/app/relatorios/oesa-nova-safra/page.tsx", (id) => id in mocks ? mocks[id] : nodeRequire(id));
+  const resolve = id => id === "@/lib/use-period-records" ? { usePeriodRecords: () => ({ rows: mocks["@/lib/store"].useCrmStore().orders, loading: false }) } : id === "@/components/network-reports-page" ? loadModule("../src/components/network-reports-page.tsx", resolve) : id.endsWith(".css") ? {} : id in mocks ? mocks[id] : nodeRequire(id);
+  const { default: Page } = loadModule("../src/app/relatorios/oesa-nova-safra/page.tsx", resolve);
   const html = renderToStaticMarkup(React.createElement(Page));
   assert.match(html, /OESA - Nova Safra/);
-  assert.match(html, /Nova Safra/);
-  assert.match(html, /Comparativo por loja/);
-  assert.doesNotMatch(html, /NaN|undefined/);
+  assert.match(html, /Produtos por loja/);
+  assert.equal(captured.group.id, "oesa");
+  assert.deepEqual(captured.report.allStores.map(row => row.customer.id), ["oesa-c1"]);
+  assert.equal(captured.report.allStores[0].current.revenue, 500);
   selected = "";
   const empty = renderToStaticMarkup(React.createElement(Page));
-  assert.match(empty, /Nenhuma rede configurada/);
-  assert.doesNotMatch(empty, /Comparativo por loja/);
+  assert.match(empty, /Nenhuma rede/);
+  assert.doesNotMatch(empty, /NaN|undefined/);
 });
 
 test("secao de comissoes renderiza tabela, total e aviso de percentual ausente", () => {
@@ -260,9 +240,40 @@ test("secao de comissoes renderiza tabela, total e aviso de percentual ausente",
   const html = render(5);
   assert.match(html, /Comissão por loja/);
   assert.match(html, /Nossa comissão geral/);
-  assert.match(html, /Exportar comissão XLS/);
+  assert.match(html, /Exportar XLS/);
   assert.match(html, /Total após filtros/);
   assert.doesNotMatch(html, /NaN|undefined/);
   assert.match(render(undefined), /Comissão ainda não configurada/);
   assert.doesNotMatch(render(0), /Comissão ainda não configurada/);
+});
+
+test("Mart Minas filtra comissao por periodo e responsavel sem duplicar bases", () => {
+  for (const [scope, expectedIds] of [["ours", ["c1", "c3"]], ["external", ["c2"]], ["all", ["c1", "c2", "c3"]], ["seller:Ana", ["c2"]]]) {
+    let captured;
+    let stateIndex = 0;
+    const mocks = {
+      react: { ...React, useState: (initial) => React.useState(stateIndex++ === 2 ? scope : initial) },
+      "@/lib/store": { useCrmStore: () => ({ customers, customerGroups: [group], orders: [order("ok", "c1", "2026-10-10", 10), order("seller", "c2", "2026-10-12", 20), order("old", "c1", "2026-09-30", 100), order("future", "c1", "2026-10-21", 100), order("wallet", "c1", "2026-10-12", 100, { status: "wallet" })] }) },
+      "@/lib/mart-minas-settings": { useMartMinasSettings: () => ({ groupId: "g1", loading: false, error: "" }) },
+      "@/lib/mart-minas-analytics": { saoPauloToday: () => "2026-10-20" },
+      "@/components/network-commission-report": { NetworkCommissionReport: (props) => { captured = props; return props.sidebar; } },
+      "./report.css": {},
+    "./workspace.css": {},
+    "./clean.css": {},
+    "@/components/store-growth-report": { StoreGrowthReport: () => null },
+    "@/components/store-products-report": { StoreProductsReport: () => null },
+    "@/components/network-products-report": { NetworkProductsReport: () => null },
+    };
+    const resolve = id => id === "@/lib/use-period-records" ? { usePeriodRecords: () => ({ rows: mocks["@/lib/store"].useCrmStore().orders, loading: false }) } : id === "@/components/network-reports-page" ? loadModule("../src/components/network-reports-page.tsx", resolve) : id.endsWith(".css") ? {} : id in mocks ? mocks[id] : nodeRequire(id);
+    const { default: Page } = loadModule("../src/app/relatorios/mart-minas/page.tsx", resolve);
+    const html = renderToStaticMarkup(React.createElement(Page));
+    assert.deepEqual(captured.report.currentPeriod, { start: "2026-10-01", end: "2026-10-20" });
+    assert.deepEqual(captured.report.stores.map(row => row.customer.id), expectedIds);
+    assert.deepEqual(captured.report.allStores.map(row => row.customer.id), ["c1", "c2", "c3"]);
+    assert.equal(captured.report.allStores.find(row => row.customer.id === "c2").current.revenue, 200);
+    assert.equal(captured.report.stores.find(row => row.customer.id === "c1")?.current.revenue ?? 100, 100);
+    assert.match(html, /type="date"/);
+    assert.match(html, /Mesclado/);
+    assert.doesNotMatch(html, /Comparativo por loja|Bonifica/);
+  }
 });

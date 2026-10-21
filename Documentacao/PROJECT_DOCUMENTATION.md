@@ -1,296 +1,70 @@
-# WRRJ CRM - Projeto e Documentação Técnica
+﻿# Visão funcional do CRM Bom Destino
 
-## Visão Geral
+Atualizado em **21/10/2026**, com base nas páginas e regras existentes no repositório.
 
-WRRJ CRM é uma aplicação comercial construída com **Next.js App Router**, **TypeScript**, **React 19**, **Tailwind CSS**, **Firebase** e **Recharts**. O sistema oferece gerenciamento de clientes, produtos, pedidos, metas, relatórios e um dashboard comercial com filtros e métricas.
+## Rotas
 
-## Tecnologias Principais
+| Rota | Finalidade |
+| --- | --- |
+| `/` | Dashboard comercial. |
+| `/clientes` | Clientes, lojas e redes. |
+| `/produtos` | Catálogo de produtos. |
+| `/pedidos` | Pedidos, importação e seleção de registros. |
+| `/bonificacoes` | Amostras e cortesias, separadas das vendas. |
+| `/metas` | Objetivos comerciais mensais e anuais. |
+| `/relatorios` | Central de análises comerciais. |
+| `/relatorios/mart-minas` | Rede configurada como Mart Minas. |
+| `/relatorios/oesa-nova-safra` | Rede configurada como OESA – Nova Safra. |
+| `/crescimento/clientes`, `/crescimento/produtos` | Comparações dos meses selecionados. |
+| `/exportacao` | Importações e exportações. |
+| `/configuracoes` | Cadastros auxiliares, redes, comissões e acessos. |
+| `/notificacoes` | Página de notificações; não implica integração com Cloud Messaging. |
 
-- Next.js 16.2.9
-- React 19.2.4
-- TypeScript 5
-- Tailwind CSS 4
-- Firebase Authentication, Firestore e Storage
-- Zod para validação de formulários
-- React Hook Form para formulários reativos
-- XLSX para importação/exportação de planilhas
-- Recharts para gráficos
-- Radix + componentes de UI customizados
-- Sonner para notificações toast
+`/carteira` é uma rota legada que redireciona para `/pedidos`. A dashboard atual não fica em `/dashboard`.
 
-## Estrutura do Projeto
+## Carteiras e redes
 
-### Diretórios principais
+Cada cliente pode guardar um `groupId` em `customers`. As redes ficam em `customer_groups`; `externalStoreSellers` associa lojas a responsáveis externos. O fluxo atual identifica essa carteira como **Sul de Minas**. A normalização consolida nomes externos antigos nessa identificação.
 
-- `src/app/` — páginas e rotas do App Router
-- `src/components/` — componentes compartilhados e formulários
-- `src/lib/` — serviços de dados, schemas e utilitários
-- `src/components/ui/` — componentes de botão, diálogo, input e select
+Os relatórios consideram o cadastro e o responsável atuais, inclusive ao consultar pedidos antigos. Mesclado reúne as carteiras; WRRJ e Sul de Minas as separam. Não se trata de isolamento de dados por usuário: as permissões comerciais atuais são compartilhadas pelos usuários aprovados.
 
-### Arquivos de configuração
+## Dashboard e comissões
 
-- `package.json` — dependências e scripts de execução
-- `tsconfig.json` — configuração TypeScript
-- `next.config.ts` — configuração Next.js
-- `postcss.config.mjs` — configuração Tailwind/PostCSS
+O painel apresenta valor dos pedidos, peso vendido, quantidade de pedidos e clientes com compra, além de análises de produtos, cidades, segmentos e crescimento. Bonificações têm indicação separada.
 
-## Fluxo de Autenticação e Aprovação de Usuário
+O bloco **Comissões Mart Minas** mostra somente a rede configurada para Mart Minas, com:
 
-### Firebase
+- Comissão total do período: WRRJ + Sul de Minas.
+- Comissão WRRJ e comissão Sul de Minas separadas.
+- Base dos pedidos, percentual WRRJ, lojas com compra e pedidos.
+- Acesso ao relatório da rede.
 
-`src/lib/firebase.ts` inicializa o Firebase com:
+Cada loja pertence a um responsável. Lojas WRRJ usam o percentual da representação; lojas Sul de Minas usam o percentual externo e sua base configurada, que pode ser o valor dos pedidos ou a comissão de representação calculada como referência. Essa referência não é somada novamente à WRRJ. O arredondamento ocorre por loja, em centavos. Configuração ausente é exibida como pendência ou total parcial, sem inventar percentual.
 
-- `auth` (Firebase Auth)
-- `db` (Firestore)
-- `googleProvider` para login Google
-- `storage` e `analytics`
+Os demais indicadores da dashboard mantêm o recorte WRRJ. O bloco consolidado Mart Minas inclui também o Sul de Minas. Bonificações não entram na base da comissão.
 
-### AuthGate
+## Pedidos e bonificações
 
-`src/components/auth-gate.tsx` é o componente que gerencia:
+As listas abrem no mês atual e usam páginas de 25 ou 50 registros, com Anterior/Próxima e cursor estável por data/ID. A ordenação global disponível nessas listas é por data.
 
-- estado de autenticação com `onAuthStateChanged`
-- login via `signInWithPopup(auth, googleProvider)`
-- redirecionamento para `/dashboard`
+A caixa do cabeçalho seleciona todos os registros **da página atual**. É possível selecionar registros em várias páginas; a seleção não exige ler o histórico completo. Em pedidos, a exclusão em lote pede confirmação. Bonificações apresentam quantidade, peso e valor da seleção, com opção de limpar.
 
-### Gerenciamento de usuários
+Bonificações abrem em **Mesclado**, com alternância para WRRJ e Sul de Minas. Cidades e motivos aceitam múltiplas escolhas e busca dentro das opções. Os filtros são aplicados por botão e aparecem como etiquetas removíveis. Ao limpar, o período retorna ao mês atual.
 
-`src/lib/user-service.ts` contém:
+Os totais dos filtros são independentes da página. Sem filtros adicionais, usam agregações. Com busca textual/carteira e outros filtros, o cálculo completo é solicitado explicitamente. Uma busca com poucas correspondências pode exigir continuar para a próxima página após atingir o limite de verificação da requisição. Erro, carregamento e ausência de registros são estados distintos.
 
-- `createOrUpdateUser` para salvar usuários no Firestore
-- `isUserApproved` e `isUserAdmin`
-- `createAccessRequest`, `getPendingAccessRequests`, `approveAccessRequest`, `rejectAccessRequest`
-- `getAllUsers`, `getApprovedUsers`
+## Cadastro e importação
 
-As coleções usadas são:
+CNPJ identifica o cliente para impedir duplicação. Nome, código e loja podem coincidir entre CNPJs diferentes. A validação consulta documentos envolvidos na operação, com suporte às formas com e sem máscara. A garantia transacional entre usuários depende de ativar as reservas de CNPJ após a migração.
 
-- `users`
-- `access_requests`
+Produtos têm ID canônico, códigos de caixa/meia caixa, quantidade, peso e preço. Os itens preservam o ID do produto, unificando as embalagens nas análises.
 
-## Páginas do Dashboard
+Importações Excel aceitam `.xls` e `.xlsx`, com validações e avisos. PDFs pesquisáveis e OCR são processados no navegador e passam por conferência antes de salvar. No Mart Minas, `Custo Bruto` é o total da linha; o importador divide esse valor pela quantidade líquida para obter o preço por embalagem. Na OESA, a leitura segue as colunas próprias desse layout. Códigos ausentes/ambíguos e CNPJs sem correspondência são sinalizados.
 
-### `src/app/dashboard/page.tsx`
+Cabeçalhos de compra e bonificação definem coleções distintas. Um mesmo número pode existir em pedido e bonificação. Pedidos são protegidos por transação contra sobrescrita na importação e colisão ao editar.
 
-Painel principal do dashboard comercial. Calcula métricas usando pedidos e clientes:
+## Identidade visual e limites
 
-- filtro de período com `dateFrom` / `dateTo`
-- `filteredOrders` para pedidos atualmente exibidos
-- `selectedMonthWeight`, `previousMonthWeight`, `yearWeight`
-- `averageTicket`, `totalOrders`, `totalAmount`
-- `activeCustomersTotal`, `purchasedActiveCustomers`, `conversionRate`
-- gráficos de `monthlyWeights`, `cityWeights`, `topProducts`
-- `groupOrdersByDay` para gráfico diário
+O favicon é a letra **B branca em fundo vermelho vinho**, com SVG, PNG e ícone Apple. Os arquivos ficam em `public/` e são referenciados pelo metadata de `src/app/layout.tsx`.
 
-**Tratamento de datas corrigido**:
-- `parseDate()` agora suporta:
-  - Formatos ISO (YYYY-MM-DD)
-  - Números seriais do Excel (convertidos corretamente)
-  - Formatos brasileiros (DD/MM/YYYY)
-- `monthlyWeights` agora filtra por ano selecionado antes de agregar meses
-- Evita divergência entre métricas e gráficos de peso mensal
-
-### `src/app/dashboard/pedidos/page.tsx`
-
-Tela de pedido com funcionalidades de:
-
-- listagem e filtros de busca
-- filtro de período por `dateFrom` e `dateTo`
-- ordenação por colunas
-- importação de XLSX com progresso e avisos
-- exportação de pedidos filtrados para XLSX
-- seleção múltipla e exclusão em lote
-- edição e visualização de pedido
-
-O filtro de data agora usa `parseOrderDate()` com suporte completo a Excel serial numbers e formatos brasileiros. `dateTo` é tratado como inclusivo (23:59:59).
-
-### `src/app/dashboard/clientes/page.tsx`
-
-Cadastro e gerenciamento de clientes com:
-
-- busca e filtros por loja e status
-- importação de clientes via XLSX
-- exportação para XLSX
-- exclusão em lote, edição e cadastro
-- atualização de clientes inativos por último pedido
-
-### `src/app/dashboard/produtos/page.tsx`
-
-Gestão de produtos com:
-
-- cache local persistente em `localStorage` para reduzir leituras Firestore
-- invalidação automática em create/update/delete/import
-- cadastro, edição e exclusão
-- importação de XLSX com normalização de unidade de venda
-- exportação para XLSX
-- filtros de busca e status
-
-### `src/app/dashboard/metas/page.tsx`
-
-Controle de metas com:
-
-- cache local persistente em `localStorage` para reduzir leituras Firestore
-- validação de metadados globais para recarregar apenas quando metas mudarem
-- criação e edição de metas mensais e anuais
-- exclusão em lote
-- exportação de metas para XLSX
-
-### `src/app/dashboard/relatorios/page.tsx`
-
-Painel de relatórios com gráficos e tabelas para:
-
-- receita por cliente
-- receita por cidade
-- receita por produto
-- top clientes e produtos
-- frequência de compra
-- análise de clientes sem compra
-- positivação de produtos e clientes
-
-Os relatórios usam `fetchAllOrders`, `fetchAllCustomers` e `fetchAllProducts` para gerar dados agregados.
-
-### `src/app/dashboard/crescimento/page.tsx`
-
-Tela de crescimento que compara:
-
-- mês atual, mês anterior e mesmo mês do ano anterior
-- clientes e produtos por peso, quantidade e receita
-- métricas de crescimento percentual
-
-O filtro é feito com base em datas de emissão dos pedidos e loja associada.
-
-### `src/app/dashboard/configuracoes/page.tsx`
-
-Administração de sistema com:
-
-- lista de usuários e solicitações de acesso
-- aprovação e rejeição de solicitações
-- visualização de logs de importação e ações do sistema
-
-## Serviços de Domínio
-
-### `src/lib/customer-service.ts`
-
-Funções principais:
-
-- `fetchAllCustomers`, `fetchCustomersPage`
-- `createCustomer`, `updateCustomer`, `softDeleteCustomer`, `hardDeleteCustomer`, `bulkDeleteCustomers`
-- `importCustomersFromXlsx` com validação Zod, normalização de colunas e detecção de duplicatas
-- `updateInactiveCustomers`
-
-Regras importantes:
-
-- IDs de cliente são construídos como `store-code`
-- clientes duplicados são ignorados na importação
-- clientes com status `deleted` são filtrados
-
-### `src/lib/product-service.ts`
-
-Funções principais:
-
-- `fetchAllProducts`, `fetchProductsPage`
-- `createProduct`, `updateProduct`, `softDeleteProduct`, `bulkDeleteProducts`
-- `importProductsFromXlsx` com normalização de unidade de venda (`und` / `kg`)
-- exportação de produtos para XLSX
-
-### `src/lib/order-service.ts`
-
-Funções principais:
-
-- `fetchAllOrders`
-- `createOrder`, `updateOrder`, `softDeleteOrder`, `bulkDeleteOrders`
-- `exportOrdersToXlsx`, `exportOrderTemplateToXlsx`
-- `importOrdersFromXlsx` para planilhas de pedidos
-
-Importação de pedidos:
-
-- normaliza cabeçalhos de colunas
-- agrupa linhas por número de pré-pedido
-- valida clientes por id, código, nome e loja
-- calcula quantidade, peso e valor total
-- emite avisos se houver múltiplos clientes/lojas no mesmo pedido
-- **Tratamento robusto de datas**:
-  - Detecta e converte números seriais do Excel (p.ex., 46583 → 01/06/2026)
-  - Suporta formatos brasileiros (DD/MM/YYYY)
-  - Normaliza todas as datas para ISO format (YYYY-MM-DD) no armazenamento
-  - Funções: `excelSerialToDate()`, `normalizeDateToISO()`
-
-### `src/lib/goal-service.ts`
-
-Funções principais:
-
-- `fetchAllGoals`
-- `createGoal`, `updateGoal`, `softDeleteGoal`, `bulkDeleteGoals`
-- exportação de metas para XLSX
-
-As metas usam um campo `period` que é construído como `YYYY` para anual ou `YYYY-MM` para mensal.
-
-### `src/lib/report-service.ts`
-
-Serviço utilitário para exportação de relatórios e tabelas para XLSX.
-
-## Schemas e Tipos
-
-`src/lib/schemas.ts` define as validações e tipos usados nos formulários:
-
-- `customerSchema`
-- `productSchema`
-- `orderItemSchema`
-- `orderSchema`
-
-O Zod garante valores obrigatórios, formatos válidos e conversão de números.
-
-## Componentes Reutilizáveis
-
-### `src/components/ui/button.tsx`
-
-Botão estilizado com variantes `default`, `secondary` e `ghost`.
-
-### `src/components/ui/dialog.tsx`
-
-Modal baseada em Radix Dialog com overlay e close automático.
-
-### `src/components/ui/input.tsx` e `src/components/ui/select.tsx`
-
-Inputs estilizados para uso nos formulários.
-
-### Formulários
-
-- `src/components/customer-form.tsx`
-- `src/components/product-form.tsx`
-- `src/components/order-form.tsx`
-- `src/components/goal-form.tsx`
-
-Cada formulário usa React Hook Form com validação Zod e suporta criação/edição.
-
-## Layout e Navegação
-
-### `src/components/app-shell.tsx`
-
-Define a interface principal do dashboard com sidebar, navegação e header.
-
-### `src/app/dashboard/layout.tsx`
-
-Encapsula todas as rotas do dashboard dentro de `AppShell`.
-
-## Notas de Implementação
-
-- O sistema usa soft delete em clientes, produtos, metas e pedidos para preservar histórico.
-- Exportação de XLSX está disponível em várias telas: pedidos, clientes, produtos, metas e relatórios.
-- Importação de XLSX conta com normalização de cabeçalhos e campos numéricos.
-- O dashboard de métricas é derivado de `filteredOrders` para manter consistência entre gráficos e cartões.
-- A lógica de comparação de clientes em pedidos tenta casar `customerId`, `customerCode`, `customerName` e `store`.
-
-## Como Rodar
-
-```bash
-npm install
-npm run dev
-```
-
-Acesse `http://localhost:3000`.
-
-## Observações
-
-- As pastas `src/app/dashboard/comparacao` e `src/app/dashboard/crescimentos` existem, mas estão vazias no estado atual.
-- O homepage em `src/app/page.tsx` fornece acesso rápido ao dashboard e páginas principais.
-- `QUICKSTART.md` e `README.md` já trazem orientações de setup e uso básico.
+Peso e valor representam pedidos registrados, não estoque, venda ao consumidor ou faturamento confirmado. Recursos de resumos diários e reservas de CNPJ exigem ativação controlada no Firebase: [guia operacional](../docs/ativacao-reducao-leituras-firebase.md).

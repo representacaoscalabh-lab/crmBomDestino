@@ -3,16 +3,22 @@
 import { ImportIssues } from "@/components/import-issues";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Download, FileSpreadsheet, FileText, Gift, Package, ShoppingCart, Upload, UsersRound } from "lucide-react";
 import { useCrmStore } from "@/lib/store";
+import { loadExportRecords } from "@/lib/export-records";
+import { findImportRecords } from "@/lib/import-existing-records";
 import { downloadXlsx } from "@/lib/xlsx";
 import { buildNetworkBonificationImport, buildNetworkOrderImport, parseNetworkOrderPdf, type NetworkOrderPdf } from "@/lib/network-order-pdf";
 import type { Bonification, Order } from "@/lib/types";
 import { importFailureMessage } from "@/lib/import-validation";
 
 export default function ExportPage() {
-  const { customers, customerGroups, products, orders, bonifications, addOrders, addBonifications } = useCrmStore();
+  const { customers, customerGroups, products, addOrders, addBonifications } = useCrmStore();
+  const exportController = useRef<AbortController | null>(null);
+  useEffect(() => () => exportController.current?.abort(), []);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportCount, setExportCount] = useState(0);
   const [category, setCategory] = useState("Clientes");
   const [activeTab, setActiveTab] = useState<"import" | "export">("import");
   const [exportError, setExportError] = useState("");
@@ -52,8 +58,10 @@ export default function ExportPage() {
       setImportWarnings([]);
       const parsed: NetworkOrderPdf[] = await parseNetworkOrderPdf(new Uint8Array(await importFile.arrayBuffer()), setImportProgress);
       setDetected({ orders: parsed.filter((entry) => entry.documentType === "order").length, bonifications: parsed.filter((entry) => entry.documentType === "bonification").length });
-      const orderResult = buildNetworkOrderImport(parsed, customers, products, orders);
-      const bonificationResult = buildNetworkBonificationImport(parsed, customers, products, bonifications);
+      const numbers = parsed.map(record => `${record.orderNumber}/L`);
+      const [existingOrders, existingBonuses] = await Promise.all([findImportRecords("orders", numbers), findImportRecords("bonifications", numbers)]);
+      const orderResult = buildNetworkOrderImport(parsed, customers, products, existingOrders as Order[]);
+      const bonificationResult = buildNetworkBonificationImport(parsed, customers, products, existingBonuses as Bonification[]);
       setOrdersPreview(orderResult.orders);
       setBonificationsPreview(bonificationResult.bonifications);
       setImportWarnings([...new Set([...orderResult.warnings, ...bonificationResult.warnings])]);
@@ -91,7 +99,8 @@ export default function ExportPage() {
       setIsImporting(false);
     }
   }
-  async function exportNetworkSummary() {
+  async function exportNetworkSummary(signal?: AbortSignal) {
+    const orders = await loadExportRecords<Order>("orders", signal, setExportCount);
     const headings = ["Rede", "Tipo de linha", "Código da loja", "Loja", "Cliente cadastrado", "Cidade", "Pedidos", "Peso total (kg)", "Faturamento (R$)"];
     const rows = customerGroups.flatMap((group) => {
       const members = customers.filter((customer) => customer.groupId === group.id);
@@ -126,19 +135,20 @@ export default function ExportPage() {
       { title: "Consolidado por rede", description: "Mostra pedidos, peso e faturamento de cada loja e o total consolidado de todas as lojas de cada rede.", action: exportNetworkSummary },
     ],
     Pedidos: [
-      { title: "Pedidos e faturamento", description: "Exporta os pedidos registrados com valor e peso.", action: () => downloadXlsx("pedidos-bom-destino.xlsx", "Pedidos", ["Pré-pedido", "Data", "Cliente", "Código cliente", "NF", "Peso (kg)", "Valor (R$)", "Situação"], orders.map((item) => [item.preOrder, item.issueDate, item.customerName, item.customerCode, item.invoice, item.totalWeight, item.totalValue, item.status])) },
+      { title: "Pedidos e faturamento", description: "Exporta os pedidos registrados com valor e peso.", action: async (signal?: AbortSignal) => downloadXlsx("pedidos-bom-destino.xlsx", "Pedidos", ["Pré-pedido", "Data", "Cliente", "Código cliente", "NF", "Peso (kg)", "Valor (R$)", "Situação"], (await loadExportRecords<Order>("orders", signal, setExportCount)).map((item) => [item.preOrder, item.issueDate, item.customerName, item.customerCode, item.invoice, item.totalWeight, item.totalValue, item.status])) },
     ],
     Bonificações: [
-      { title: "Amostras e cortesias", description: "Exporta bonificações separadamente das vendas e pedidos.", action: () => downloadXlsx("bonificacoes-bom-destino.xlsx", "Bonificações", ["Controle", "Data", "Cliente", "Código cliente", "Motivo", "Produto", "Código produto", "Embalagem", "Quantidade", "Unidades", "Peso (kg)", "Valor de referência (R$)"], bonifications.flatMap((bonus) => bonus.items.map((item) => [bonus.bonusNumber, bonus.issueDate, bonus.customerName, bonus.customerCode, bonus.reason, item.description, item.productCode, item.packageKind, item.packageQuantity, item.unitQuantity, item.grossWeight ?? item.totalWeight, item.subtotal ?? item.packagePrice * item.packageQuantity]))) },
+      { title: "Amostras e cortesias", description: "Exporta bonificações separadamente das vendas e pedidos.", action: async (signal?: AbortSignal) => downloadXlsx("bonificacoes-bom-destino.xlsx", "Bonificações", ["Controle", "Data", "Cliente", "Código cliente", "Motivo", "Produto", "Código produto", "Embalagem", "Quantidade", "Unidades", "Peso (kg)", "Valor de referência (R$)"], (await loadExportRecords<Bonification>("bonifications", signal, setExportCount)).flatMap((bonus) => bonus.items.map((item) => [bonus.bonusNumber, bonus.issueDate, bonus.customerName, bonus.customerCode, bonus.reason, item.description, item.productCode, item.packageKind, item.packageQuantity, item.unitQuantity, item.grossWeight ?? item.totalWeight, item.subtotal ?? item.packagePrice * item.packageQuantity]))) },
     ],
     Produtos: [
       { title: "Produtos", description: "Exporta os dados do catálogo no formato do modelo de importação.", action: () => downloadXlsx("produtos-bom-destino.xlsx", "Produtos", ["Descrição do Produto", "Preço", "Cod CX", "Meia CX", "Medida", "Peso Unidade", "Peso", "Validade", "QTD CX", "Status", "Associado"], products.map((item) => [item.description, item.unitPrice ?? item.pricePerBox / item.quantityPerBox, item.codeBox, item.codeHalfBox, item.measure ?? "KG", item.unitWeight ?? item.weightPerBox / item.quantityPerBox, item.weightType ?? "Fixo", item.expiration ?? "", item.quantityPerBox, item.status, item.associated ?? ""])) },
     ],
   } as const;
   const selected = options[category as keyof typeof options];
-  const categories = [{ name: "Clientes", detail: "Cadastros e carteira", icon: UsersRound, count: customers.length }, { name: "Pedidos", detail: "Pedidos e faturamento", icon: ShoppingCart, count: orders.length }, { name: "Bonificações", detail: "Amostras e cortesias", icon: Gift, count: bonifications.length }, { name: "Produtos", detail: "Catálogo comercial", icon: Package, count: products.length }];
+  const categories = [{ name: "Clientes", detail: "Cadastros e carteira", icon: UsersRound, count: customers.length }, { name: "Pedidos", detail: "Pedidos e faturamento", icon: ShoppingCart, count: "Sob demanda" }, { name: "Bonificações", detail: "Amostras e cortesias", icon: Gift, count: "Sob demanda" }, { name: "Produtos", detail: "Catálogo comercial", icon: Package, count: products.length }];
   return <div className="page-content module-content import-export-page">
     <section className="panel module-panel export-panel">
+      {exportBusy && <div role="status">Preparando exportação: {exportCount} registros carregados. <button type="button" className="button button-light" onClick={() => exportController.current?.abort()}>Cancelar</button></div>}
       <div className="module-heading"><span className="module-title-icon"><FileSpreadsheet size={21} /></span><div className="module-title-copy"><p className="eyebrow">DADOS E RELATÓRIOS</p><h1>Importações e exportações</h1><p>Importe documentos com leitura inteligente ou exporte os dados da base.</p></div><span className="source-pill">Dados da base atual</span></div>
       <div className="import-export-tabs" role="tablist" aria-label="Importar ou exportar dados">
         <button type="button" role="tab" aria-selected={activeTab === "import"} className={activeTab === "import" ? "import-export-tab-active" : ""} onClick={() => setActiveTab("import")}><Upload size={16} /> Importações</button>
@@ -183,7 +193,7 @@ export default function ExportPage() {
         <div className="export-category-label">TIPO DE EXPORTAÇÃO</div>
         <div className="export-categories">{categories.map(({ name, detail, icon: Icon, count }) => <button key={name} className={`export-category ${category === name ? "export-category-active" : ""}`} onClick={() => setCategory(name)}><span><Icon size={17} /></span><strong>{name}</strong><small>{detail}</small><i>{count}</i></button>)}</div>
         <h2>Exportações de {category.toLowerCase()}</h2>{exportError && <div className="import-feedback feedback-warning" role="alert">{exportError}</div>}
-        <div className="export-card-grid">{selected.map(({ title, description, action }) => <article className="export-card" key={title}><span className="export-card-icon"><Download size={18} /></span><h3>{title}</h3><p>{description}</p><button onClick={() => { setExportError(""); void Promise.resolve(action()).catch((cause: unknown) => { console.error("Falha ao exportar os dados.", cause); setExportError("Não foi possível gerar a planilha. Tente novamente."); }); }}><Download size={15} /> Exportar XLSX</button></article>)}</div>
+        <div className="export-card-grid">{selected.map(({ title, description, action }) => <article className="export-card" key={title}><span className="export-card-icon"><Download size={18} /></span><h3>{title}</h3><p>{description}</p><button disabled={exportBusy} onClick={() => { setExportError(""); setExportBusy(true); setExportCount(0); const controller = new AbortController(); exportController.current = controller; void Promise.resolve(action(controller.signal)).catch((cause: unknown) => { setExportError(cause instanceof Error ? cause.message : "Falha ao gerar a planilha."); }).finally(() => setExportBusy(false)); }}><Download size={15} /> Exportar XLSX</button></article>)}</div>
       </div>}
     </section>
   </div>;

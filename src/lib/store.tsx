@@ -1,5 +1,8 @@
 "use client";
 
+import { normalizeCustomerGroup } from "@/lib/responsibility";
+import { normalizeOrder } from "@/lib/order-status";
+
 import {
   createContext,
   useCallback,
@@ -10,9 +13,13 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
-import { addDoc, collection, deleteDoc, deleteField, doc, getDocs, getDocsFromServer, onSnapshot, runTransaction, serverTimestamp, updateDoc, writeBatch } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, deleteField, doc, getDocs, runTransaction, serverTimestamp, updateDoc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { crmQueryCache, invalidateResource, onResourceInvalidated } from "@/lib/query-cache";
+import { recordFirestoreRead } from "@/lib/firestore-metrics";
 import { useAuth } from "@/lib/auth";
+import { customerReservationsEnabled, saveCustomerWithReservation, deleteCustomerWithReservation } from "@/lib/customer-document-reservation";
+import { findCustomersByDocuments } from "@/lib/customer-document-query";
 import { validateCustomerBatch } from "@/lib/customer-import";
 import { ImportValidationError } from "@/lib/import-validation";
 import type { Bonification, Customer, CustomerGroup, Goal, NewCustomer, NewProduct, Order, PaymentTerm, Product } from "@/lib/types";
@@ -33,6 +40,8 @@ type CrmStore = {
   updatePaymentTerm: (id: string, term: Omit<PaymentTerm, "id">) => Promise<void>;
   deletePaymentTerm: (id: string) => Promise<void>;
   dataError: string;
+  loadingResources: string[];
+  requireResource: (name: string) => () => void;
   refreshData: () => Promise<void>;
   addCustomer: (customer: NewCustomer) => Promise<void>;
   addCustomers: (customers: NewCustomer[]) => Promise<void>;
@@ -61,11 +70,30 @@ function getOrderDocumentId(preOrder: string, customerId?: string) {
   return encodeURIComponent(customerId ? `${customerId}:${orderKey}` : orderKey);
 }
 
+function invalidateAfter<A extends unknown[], R>(operation: (...args: A) => Promise<R>, resource: string) {
+  return async (...args: A): Promise<R> => {
+    try { return await operation(...args); }
+    finally { invalidateResource(resource); if (resource === "customer_groups") invalidateResource("customers"); }
+  };
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
+  const { crmUser } = useAuth();
+  const sessionKey = crmUser?.status === "approved" ? crmUser.uid : "signed-out";
+  return <SessionStore key={sessionKey}>{children}</SessionStore>;
+}
+
+function SessionStore({ children }: { children: ReactNode }) {
   const { crmUser } = useAuth();
   const pathname = usePathname();
   const isApproved = crmUser?.status === "approved";
-  const isBonificationsPage = pathname.startsWith("/bonificacoes");
+  const uid = isApproved ? crmUser.uid : "";
+  const [demands, setDemands] = useState<Record<string, number>>({});
+  const requireResource = useCallback((name: string) => {
+    setDemands(current => ({ ...current, [name]: (current[name] ?? 0) + 1 }));
+    return () => setDemands(current => ({ ...current, [name]: Math.max(0, (current[name] ?? 0) - 1) }));
+  }, []);
+  const [loadingResources, setLoadingResources] = useState<string[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerGroups, setCustomerGroups] = useState<CustomerGroup[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -75,74 +103,78 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
   const [dataError, setDataError] = useState("");
 
-  useEffect(() => {
-    if (!isApproved) return;
-    const handleError = (error: Error) => {
-      console.error("Falha ao sincronizar os dados do CRM.", error);
-      setDataError("Não foi possível sincronizar os dados. Verifique a conexão e as regras de acesso do Firebase.");
-    };
-    const handleSnapshot = <T,>(update: (items: T[]) => void, items: T[]) => {
-      setDataError("");
-      update(items);
-    };
-    const unsubscribe = [
-      onSnapshot(collection(db, "customers"), (snapshot) => handleSnapshot(setCustomers, snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Customer)), handleError),
-      onSnapshot(collection(db, "customer_groups"), (snapshot) => handleSnapshot(setCustomerGroups, snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as CustomerGroup)), handleError),
-      onSnapshot(collection(db, "products"), (snapshot) => handleSnapshot(setProducts, snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Product)), handleError),
-      onSnapshot(collection(db, "bonifications"), (snapshot) => handleSnapshot(setBonifications, snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Bonification)), handleError),
-      onSnapshot(collection(db, "goals"), (snapshot) => handleSnapshot(setGoals, snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Goal)), handleError),
-      onSnapshot(collection(db, "payment_terms"), (snapshot) => handleSnapshot(setPaymentTerms, snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as PaymentTerm)), handleError),
-    ];
-    return () => unsubscribe.forEach((stop) => stop());
-  }, [isApproved]);
+  const resources = useMemo(() => {
+    const resources = new Set(Object.keys(demands).filter(name => demands[name] > 0));
+    const isReport = pathname.startsWith("/relatorios");
+    if (pathname !== "/produtos") { resources.add("customers"); resources.add("customer_groups"); }
+    if (pathname === "/" || isReport || ["/produtos", "/exportacao"].some(path => pathname.startsWith(path))) resources.add("products");
+    if (pathname.startsWith("/metas")) resources.add("goals");
+    if (["/configuracoes", "/clientes", "/exportacao"].some(path => pathname.startsWith(path))) resources.add("payment_terms");
+    return [...resources].sort();
+  }, [pathname, demands]);
 
   useEffect(() => {
-    if (!isApproved || isBonificationsPage) return;
-    const unsubscribe = onSnapshot(
-      collection(db, "orders"),
-      (snapshot) => {
-        setDataError("");
-        setOrders(snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Order));
-      },
-      (error) => {
-        console.error("Falha ao sincronizar os pedidos.", error);
-        setDataError("Não foi possível sincronizar os pedidos. Verifique a conexão e as regras de acesso do Firebase.");
-      },
-    );
-    return unsubscribe;
-  }, [isApproved, isBonificationsPage]);
+    if (!uid) {
+      crmQueryCache.clear();
+      return;
+    }
+    let disposed = false;
+    const errors = new Map<string, string>();
+    const setters: Record<string, (rows: never[]) => void> = {
+      customers: setCustomers, customer_groups: setCustomerGroups, products: setProducts,
+      orders: setOrders, bonifications: setBonifications, goals: setGoals, payment_terms: setPaymentTerms,
+    };
+    async function load(resource: string) {
+      setLoadingResources(current => current.includes(resource) ? current : [...current, resource]);
+      try {
+        const rows = await crmQueryCache.read(`${resource}:${uid}:all`, async () => {
+          const snapshot = await getDocs(collection(db, resource));
+          recordFirestoreRead(resource, snapshot.size, snapshot.metadata.fromCache);
+          return snapshot.docs.map(item => ({ ...item.data(), id: item.id }));
+        }, ["orders", "bonifications"].includes(resource) ? 120_000 : 600_000);
+        if (disposed) return;
+        const normalized = resource === "orders" ? rows.map(row => normalizeOrder(row as Order))
+          : resource === "customer_groups" ? rows.map(row => normalizeCustomerGroup(row as CustomerGroup)) : rows;
+        setters[resource](normalized as never[]);
+        errors.delete(resource);
+      } catch (cause) {
+        recordFirestoreRead(resource, 0, false, true);
+        if (disposed) return;
+        errors.set(resource, `N?o foi poss?vel atualizar ${resource}. Tente atualizar a p?gina.`);
+        console.error("Falha na consulta do CRM", resource, cause);
+      } finally {
+        if (!disposed) { setLoadingResources(current => current.filter(item => item !== resource)); setDataError([...errors.values()].join(" ")); }
+      }
+    }
+    queueMicrotask(() => { if (!disposed) resources.forEach(resource => void load(resource)); });
+    const off = onResourceInvalidated(resource => { if (resources.includes(resource)) void load(resource); });
+    const onFocus = () => resources.forEach(resource => void load(resource));
+    window.addEventListener("focus", onFocus);
+    return () => { disposed = true; off(); window.removeEventListener("focus", onFocus); };
+  }, [uid, resources]);
 
+  // Refresh the current resource only, rather than downloading seven collections.
   const refreshData = useCallback(async () => {
-    const [customerSnapshot, groupSnapshot, productSnapshot, orderSnapshot, bonificationSnapshot, goalSnapshot, paymentTermSnapshot] = await Promise.all([
-      getDocs(collection(db, "customers")),
-      getDocs(collection(db, "customer_groups")),
-      getDocs(collection(db, "products")),
-      getDocs(collection(db, "orders")),
-      getDocs(collection(db, "bonifications")),
-      getDocs(collection(db, "goals")),
-      getDocs(collection(db, "payment_terms")),
-    ]);
-    setCustomers(customerSnapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Customer));
-    setCustomerGroups(groupSnapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as CustomerGroup));
-    setProducts(productSnapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Product));
-    setOrders(orderSnapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Order));
-    setBonifications(bonificationSnapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Bonification));
-    setGoals(goalSnapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Goal));
-    setPaymentTerms(paymentTermSnapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as PaymentTerm));
-    setDataError("");
-  }, []);
+    const resource = pathname.startsWith("/pedidos") ? "orders" : pathname.startsWith("/bonificacoes") ? "bonifications" : null;
+    if (resource) invalidateResource(resource);
+  }, [pathname]);
 
   const addCustomer = useCallback(async (customer: NewCustomer) => {
-    const snapshot = await getDocsFromServer(collection(db, "customers"));
-    validateCustomerBatch([customer], snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Customer));
+    validateCustomerBatch([customer], customers);
+    validateCustomerBatch([customer], await findCustomersByDocuments([customer]));
+    if (customerReservationsEnabled) { await saveCustomerWithReservation(null, customer); return; }
     await addDoc(collection(db, "customers"), { ...customer, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
-  }, []);
+  }, [customers]);
 
   const addCustomers = useCallback(async (newCustomers: NewCustomer[]) => {
-    const snapshot = await getDocsFromServer(collection(db, "customers"));
-    validateCustomerBatch(newCustomers, snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Customer), undefined, { cnpjOnly: true });
+    validateCustomerBatch(newCustomers, customers, undefined, { cnpjOnly: true });
+    validateCustomerBatch(newCustomers, await findCustomersByDocuments(newCustomers), undefined, { cnpjOnly: true });
     let saved = 0;
     try {
+      if (customerReservationsEnabled) {
+        for (const customer of newCustomers) { await saveCustomerWithReservation(null, customer); saved++; }
+        return;
+      }
       for (let start = 0; start < newCustomers.length; start += 450) {
         const batch = writeBatch(db);
         newCustomers.slice(start, start + 450).forEach((customer) => {
@@ -158,15 +190,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch {
       throw new ImportValidationError(`Importação interrompida: ${saved} cliente(s) salvo(s) e ${newCustomers.length - saved} não confirmado(s). Confira a lista atualizada antes de tentar novamente.`, ["Clientes já salvos serão identificados pelo CNPJ na próxima importação."]);
     }
-  }, []);
+  }, [customers]);
 
   const updateCustomer = useCallback(async (id: string, customer: NewCustomer) => {
-    const snapshot = await getDocsFromServer(collection(db, "customers"));
-    validateCustomerBatch([customer], snapshot.docs.map((item) => ({ ...item.data(), id: item.id }) as Customer), id);
+    validateCustomerBatch([customer], customers, id);
+    validateCustomerBatch([customer], await findCustomersByDocuments([customer]), id);
+    if (customerReservationsEnabled) { await saveCustomerWithReservation(id, customer); return; }
     await updateDoc(doc(db, "customers", id), { ...customer, updatedAt: serverTimestamp() });
-  }, []);
+  }, [customers]);
 
   const deleteCustomer = useCallback(async (id: string) => {
+    if (customerReservationsEnabled) { await deleteCustomerWithReservation(id); return; }
     await deleteDoc(doc(db, "customers", id));
   }, []);
 
@@ -174,6 +208,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const uniqueIds = [...new Set(ids)];
     let deleted = 0;
     try {
+      if (customerReservationsEnabled) {
+        for (const id of uniqueIds) { await deleteCustomerWithReservation(id); deleted++; }
+        return;
+      }
       for (let start = 0; start < uniqueIds.length; start += 450) {
         const batch = writeBatch(db);
         uniqueIds.slice(start, start + 450).forEach((id) => batch.delete(doc(db, "customers", id)));
@@ -190,7 +228,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const selectedIds = new Set(customerIds);
     const sellers = Object.fromEntries(Object.entries(externalStoreSellers)
       .filter(([customerId, seller]) => selectedIds.has(customerId) && seller.trim())
-      .map(([customerId, seller]) => [customerId, seller.trim()]));
+      .map(([customerId]) => [customerId, "Sul de Minas"]));
     const changes = customers
       .filter((customer) => customer.groupId === groupRef.id && !selectedIds.has(customer.id))
       .map((customer) => ({ id: customer.id, groupId: null as string | null }))
@@ -290,7 +328,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           const snapshots = await Promise.all(refs.map((ref) => transaction.get(ref)));
           const duplicateIndex = snapshots.findIndex((snapshot) => snapshot.exists());
           if (duplicateIndex !== -1) throw new ImportValidationError(`Pedido ${chunk[duplicateIndex].preOrder} já existe para este cliente. Leia o PDF novamente para atualizar a prévia; o pedido existente não foi alterado.`);
-          chunk.forEach((order, index) => transaction.set(refs[index], { ...order, id: refs[index].id, updatedAt: serverTimestamp() }));
+          chunk.forEach((order, index) => transaction.set(refs[index], { ...normalizeOrder(order), itemCount: order.items.length, id: refs[index].id, updatedAt: serverTimestamp() }));
         });
         saved += chunk.length;
       }
@@ -302,10 +340,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const updateOrder = useCallback(async (id: string, order: Order) => {
     const nextId = getOrderDocumentId(order.preOrder, order.customerId);
-    const batch = writeBatch(db);
-    batch.set(doc(db, "orders", nextId), { ...order, id: nextId, updatedAt: serverTimestamp() });
-    if (id !== nextId) batch.delete(doc(db, "orders", id));
-    await batch.commit();
+    await runTransaction(db, async transaction => {
+      const nextRef = doc(db, "orders", nextId);
+      if (id !== nextId && (await transaction.get(nextRef)).exists()) throw new ImportValidationError(`Pedido ${order.preOrder} já existe para este cliente.`);
+      transaction.set(nextRef, { ...normalizeOrder(order), itemCount: order.items.length, id: nextId, updatedAt: serverTimestamp() });
+      if (id !== nextId) transaction.delete(doc(db, "orders", id));
+    });
   }, []);
 
   const deleteOrder = useCallback(async (id: string) => {
@@ -321,7 +361,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addBonification = useCallback(async (bonification: Omit<Bonification, "id">) => {
-    await addDoc(collection(db, "bonifications"), { ...bonification, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+    await addDoc(collection(db, "bonifications"), { ...bonification, itemCount: bonification.items.length, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
   }, []);
 
   const addBonifications = useCallback(async (newBonifications: Omit<Bonification, "id">[]) => {
@@ -330,6 +370,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       newBonifications.slice(start, start + 450).forEach((bonification) => {
         batch.set(doc(collection(db, "bonifications")), {
           ...bonification,
+          itemCount: bonification.items.length,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -339,7 +380,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateBonification = useCallback(async (id: string, bonification: Omit<Bonification, "id">) => {
-    await updateDoc(doc(db, "bonifications", id), { ...bonification, updatedAt: serverTimestamp() });
+    await updateDoc(doc(db, "bonifications", id), { ...bonification, itemCount: bonification.items.length, updatedAt: serverTimestamp() });
   }, []);
 
   const deleteBonification = useCallback(async (id: string) => {
@@ -355,35 +396,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       bonifications: isApproved ? bonifications : [],
       goals: isApproved ? goals : [],
       paymentTerms: isApproved ? paymentTerms : [],
-      addGoal,
-      updateGoal,
-      deleteGoal,
-      deleteGoals,
-      addPaymentTerm,
-      updatePaymentTerm,
-      deletePaymentTerm,
+      addGoal: invalidateAfter(addGoal, "goals"),
+      updateGoal: invalidateAfter(updateGoal, "goals"),
+      deleteGoal: invalidateAfter(deleteGoal, "goals"),
+      deleteGoals: invalidateAfter(deleteGoals, "goals"),
+      addPaymentTerm: invalidateAfter(addPaymentTerm, "payment_terms"),
+      updatePaymentTerm: invalidateAfter(updatePaymentTerm, "payment_terms"),
+      deletePaymentTerm: invalidateAfter(deletePaymentTerm, "payment_terms"),
       dataError,
+      loadingResources,
+      requireResource,
       refreshData,
-      addCustomer,
-      addCustomers,
-      updateCustomer,
-      deleteCustomer,
-      deleteCustomers,
-      saveCustomerGroup,
-      deleteCustomerGroup,
-      addProduct,
-      updateProduct,
-      deleteProduct,
-      addOrders,
-      updateOrder,
-      deleteOrder,
-      deleteOrders,
-      addBonification,
-      addBonifications,
-      updateBonification,
-      deleteBonification,
+      addCustomer: invalidateAfter(addCustomer, "customers"),
+      addCustomers: invalidateAfter(addCustomers, "customers"),
+      updateCustomer: invalidateAfter(updateCustomer, "customers"),
+      deleteCustomer: invalidateAfter(deleteCustomer, "customers"),
+      deleteCustomers: invalidateAfter(deleteCustomers, "customers"),
+      saveCustomerGroup: invalidateAfter(saveCustomerGroup, "customer_groups"),
+      deleteCustomerGroup: invalidateAfter(deleteCustomerGroup, "customer_groups"),
+      addProduct: invalidateAfter(addProduct, "products"),
+      updateProduct: invalidateAfter(updateProduct, "products"),
+      deleteProduct: invalidateAfter(deleteProduct, "products"),
+      addOrders: invalidateAfter(addOrders, "orders"),
+      updateOrder: invalidateAfter(updateOrder, "orders"),
+      deleteOrder: invalidateAfter(deleteOrder, "orders"),
+      deleteOrders: invalidateAfter(deleteOrders, "orders"),
+      addBonification: invalidateAfter(addBonification, "bonifications"),
+      addBonifications: invalidateAfter(addBonifications, "bonifications"),
+      updateBonification: invalidateAfter(updateBonification, "bonifications"),
+      deleteBonification: invalidateAfter(deleteBonification, "bonifications"),
     }),
-    [isApproved, customers, customerGroups, products, orders, bonifications, goals, paymentTerms, dataError, refreshData, addPaymentTerm, updatePaymentTerm, deletePaymentTerm, addGoal, updateGoal, deleteGoal, deleteGoals, addCustomer, addCustomers, updateCustomer, deleteCustomer, deleteCustomers, saveCustomerGroup, deleteCustomerGroup, addProduct, updateProduct, deleteProduct, addOrders, updateOrder, deleteOrder, deleteOrders, addBonification, addBonifications, updateBonification, deleteBonification],
+    [isApproved, loadingResources, requireResource, customers, customerGroups, products, orders, bonifications, goals, paymentTerms, dataError, refreshData, addPaymentTerm, updatePaymentTerm, deletePaymentTerm, addGoal, updateGoal, deleteGoal, deleteGoals, addCustomer, addCustomers, updateCustomer, deleteCustomer, deleteCustomers, saveCustomerGroup, deleteCustomerGroup, addProduct, updateProduct, deleteProduct, addOrders, updateOrder, deleteOrder, deleteOrders, addBonification, addBonifications, updateBonification, deleteBonification],
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
@@ -393,4 +436,15 @@ export function useCrmStore() {
   const store = useContext(StoreContext);
   if (!store) throw new Error("useCrmStore precisa ser usado dentro de StoreProvider.");
   return store;
+}
+
+/** Register resources needed only while an editor/importer is open. */
+export function useCrmResources(names: string[], enabled = true) {
+  const { requireResource } = useCrmStore();
+  const key = names.join(",");
+  useEffect(() => {
+    if (!enabled) return;
+    const releases = key.split(",").filter(Boolean).map(requireResource);
+    return () => releases.forEach(release => release());
+  }, [key, enabled, requireResource]);
 }

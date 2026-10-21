@@ -8,7 +8,6 @@ import { ImportIssues } from "@/components/import-issues";
 import { prepareCustomerImport } from "@/lib/customer-import";
 import { customerValidation, normalizeCnpj, ImportValidationError, importFailureMessage } from "@/lib/import-validation";
 import { SpreadsheetImportModal } from "@/components/spreadsheet-import-modal";
-import { useSellers } from "@/lib/sellers";
 import { useCrmStore } from "@/lib/store";
 import { downloadXlsx, downloadXlsxTemplate, readSpreadsheetRows } from "@/lib/xlsx";
 import type { Customer } from "@/lib/types";
@@ -26,7 +25,6 @@ function customerRow(customer: Customer): (string | number)[] {
 }
 
 export default function CustomersPage() {
-  const { sellers, loading: sellersLoading, error: sellersError } = useSellers();
   const { customers, customerGroups, paymentTerms, addCustomer, addCustomers, updateCustomer, deleteCustomer, deleteCustomers, saveCustomerGroup, deleteCustomerGroup } = useCrmStore();
   const [searchDraft, setSearchDraft] = useState("");
   const [moreFilters, setMoreFilters] = useState(false);
@@ -242,11 +240,6 @@ export default function CustomersPage() {
     }
     setSavingGroup(true);
     try {
-      if (groupCustomerIds.some((id) => id in groupSellers && !groupSellers[id].trim())) {
-        setGroupTab("sellers");
-        setGroupError("Informe o vendedor de cada loja marcada como Outro vendedor.");
-        return;
-      }
       await saveCustomerGroup(editingGroupId, groupName, groupCustomerIds, groupSellers);
       setGroupSellers({});
       setGroupError("");
@@ -358,6 +351,7 @@ export default function CustomersPage() {
               </div>
               <fieldset className="network-editor-scroll" disabled={savingGroup}>
               <div id="network-stores-panel" role="tabpanel" aria-labelledby="network-stores-tab" hidden={groupTab !== "stores"}>
+              <div className="network-responsibility-actions"><div><strong>Responsável pelas lojas selecionadas</strong><p>Aplique WRRJ ou Sul de Minas às lojas desta rede. Para ajustar uma loja, abra a aba Responsáveis.</p></div><div><button type="button" className="button button-outline" disabled={!groupCustomerIds.length} onClick={() => setGroupSellers((current) => { const next = { ...current }; groupCustomerIds.forEach((id) => delete next[id]); return next; })}>WRRJ</button><button type="button" className="button button-outline" disabled={!groupCustomerIds.length} onClick={() => setGroupSellers((current) => ({ ...current, ...Object.fromEntries(groupCustomerIds.map((id) => [id, "Sul de Minas"])) }))}>Sul de Minas</button></div><small>{groupCustomerIds.filter((id) => !(id in groupSellers)).length} WRRJ · {groupCustomerIds.filter((id) => id in groupSellers).length} Sul de Minas</small></div>
               <label className="network-selected-filter"><input type="checkbox" checked={onlySelectedStores} onChange={(event) => setOnlySelectedStores(event.target.checked)} /> Mostrar apenas selecionadas</label>
               <div className="customer-group-select-heading"><div><strong>Selecione as lojas</strong><span>{groupCustomerIds.length} loja(s) selecionada(s)</span></div><div><button type="button" onClick={() => setGroupCustomerIds((current) => Array.from(new Set([...current, ...groupCustomers.map((customer) => customer.id)])))}>Selecionar visíveis</button><button type="button" onClick={() => setGroupCustomerIds([])}>Limpar</button></div></div>
               <div className="customer-group-search"><Search size={16} /><input aria-label="Buscar lojas para adicionar à rede" value={groupSearch} onChange={(event) => setGroupSearch(event.target.value)} placeholder="Buscar por nome, código ou cidade..." /></div>
@@ -368,24 +362,18 @@ export default function CustomersPage() {
               </div>
               <section className="customer-group-sellers" id="network-sellers-panel" role="tabpanel" aria-labelledby="network-sellers-tab" hidden={groupTab !== "sellers"}>
                 <strong>Quem atende cada loja?</strong>
-                {sellersError && <p role="alert">{sellersError}</p>}
-                {!sellersLoading && !sellersError && sellers.length === 0 && <p>Cadastre os vendedores em Configurações → Vendedores.</p>}
-                <p>Lojas de outro vendedor continuam na rede e recebem pedidos normalmente, mas ficam fora de todas as métricas do dashboard. A seleção vale também para pedidos já importados.</p>
+                <p>Lojas de Sul de Minas continuam na rede e recebem pedidos normalmente, mas ficam fora de todas as métricas do dashboard. A seleção vale também para pedidos já importados.</p>
                 {customers.filter((customer) => groupCustomerIds.includes(customer.id)).map((customer) => <div className="customer-group-seller-row" key={customer.id}>
                   <span><strong>{customer.name}</strong><small>Cód. {customer.code} · Loja {customer.store || "—"} · {customer.city}</small></span>
                   <select aria-label={`Responsável pela loja ${customer.code} ${customer.store}`} value={customer.id in groupSellers ? "external" : "ours"} onChange={(event) => setGroupSellers((current) => {
                     const next = { ...current };
-                    if (event.target.value === "external") next[customer.id] = "";
+                    if (event.target.value === "external") next[customer.id] = "Sul de Minas";
                     else delete next[customer.id];
                     return next;
-                  })}><option value="ours">Representação WRRJ</option><option value="external">Outro vendedor</option></select>
-                  {customer.id in groupSellers && <label>Vendedor<select value={groupSellers[customer.id]} onChange={(event) => setGroupSellers((current) => ({ ...current, [customer.id]: event.target.value }))}>
-                    <option value="">{sellersLoading ? "Carregando vendedores..." : "Selecione o vendedor"}</option>
-                    {groupSellers[customer.id] && !sellers.some((seller) => seller.name === groupSellers[customer.id]) && <option value={groupSellers[customer.id]}>{groupSellers[customer.id]} (cadastro anterior)</option>}
-                    {sellers.map((seller) => <option key={seller.id} value={seller.name}>{seller.name}</option>)}
-                  </select></label>}
+                  })}><option value="ours">WRRJ</option><option value="external">Sul de Minas</option></select>
+
                 </div>)}
-                <small>{groupCustomerIds.filter((id) => id in groupSellers).length} loja(s) de outro vendedor · {groupCustomerIds.filter((id) => !(id in groupSellers)).length} na Representação WRRJ</small>
+                <small>{groupCustomerIds.filter((id) => id in groupSellers).length} loja(s) de Sul de Minas · {groupCustomerIds.filter((id) => !(id in groupSellers)).length} na Representação WRRJ</small>
               </section>
               </fieldset>
               {groupError && <p className="form-error" role="alert">{groupError}</p>}

@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    { "collectionGroup": "bonifications", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "reason", "order": "ASCENDING" }, { "fieldPath": "issueDate", "order": "DESCENDING" }] },
+    { "collectionGroup": "bonifications", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "reason", "order": "ASCENDING" }, { "fieldPath": "issueDate", "order": "ASCENDING" }] }
+  ],
+  "fieldOverrides": [
+    { "collectionGroup": "orders", "fieldPath": "items", "indexes": [] },
+    { "collectionGroup": "bonifications", "fieldPath": "items", "indexes": [] },
+    { "collectionGroup": "daily_orders", "fieldPath": "products", "indexes": [] },
+    { "collectionGroup": "daily_bonifications", "fieldPath": "products", "indexes": [] },
+    { "collectionGroup": "aggregate_states", "fieldPath": "projection", "indexes": [] }
+  ]
+}

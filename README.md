@@ -53,6 +53,7 @@ Em PowerShell com bloqueio de scripts `.ps1`, use os executáveis `.cmd` como no
 ## Documentação
 
 - [Índice da documentação](Documentacao/README.md)
+- [API v1: configuração, autenticação, endpoints e JSON](docs/api/README.md)
 - [Guia rápido](Documentacao/QUICKSTART.md)
 - [Visão funcional e regras de negócio](Documentacao/PROJECT_DOCUMENTATION.md)
 - [Arquitetura e contratos técnicos](Documentacao/TECHNICAL.md)

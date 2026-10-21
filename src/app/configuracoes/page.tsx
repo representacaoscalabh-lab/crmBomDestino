@@ -26,9 +26,10 @@ import { NetworkCommissionSettings } from "@/components/network-commission-setti
 
 import { SellerSettings } from "@/components/seller-settings";
 import { TeamAccessMembers } from "@/components/team-access-members";
+import { ApiSettings } from "@/components/api-settings";
 
 type AccessRequest = { id: string; uid: string; email: string; name: string; status: string };
-type SettingsSection = "access" | "payment-terms" | "networks" | "sellers";
+type SettingsSection = "access" | "payment-terms" | "networks" | "sellers" | "api";
 
 export default function SettingsPage() {
   const { crmUser } = useAuth();
@@ -157,12 +158,13 @@ export default function SettingsPage() {
         </button>
       <button type="button" className={section === "networks" ? "settings-tab settings-tab-active" : "settings-tab"} onClick={() => setSection("networks")} aria-current={section === "networks" ? "page" : undefined}><CreditCard size={18} /><span className="settings-tab-copy"><strong>Redes e comissões</strong><small>Nomes, relatórios e percentuais</small></span></button>
         <button type="button" className={section === "sellers" ? "settings-tab settings-tab-active" : "settings-tab"} onClick={() => setSection("sellers")} aria-current={section === "sellers" ? "page" : undefined}><UsersRound size={18} /><span className="settings-tab-copy"><strong>Responsáveis</strong><small>WRRJ e Sul de Minas</small></span></button>
+        <button type="button" className={section === "api" ? "settings-tab settings-tab-active" : "settings-tab"} onClick={() => setSection("api")} aria-current={section === "api" ? "page" : undefined}><ShieldCheck size={18} /><span className="settings-tab-copy"><strong>API</strong><small>JSON, coleções e documentação</small></span></button>
       </nav>
       <div className="settings-account"><span className="settings-account-avatar"><UserRound size={18} /></span><div><strong>{crmUser.name || "Administrador"}</strong><small>{crmUser.email}</small></div><BadgeCheck size={16} /></div>
       </aside>
       <div className="settings-main">
 
-      {section === "sellers" ? <SellerSettings /> : section === "networks" ? <NetworkCommissionSettings /> : section === "access" ? (
+      {section === "api" ? <ApiSettings /> : section === "sellers" ? <SellerSettings /> : section === "networks" ? <NetworkCommissionSettings /> : section === "access" ? (
         <section className="panel settings-section-panel">
           <div className="settings-section-heading">
             <span className="settings-section-icon"><UserRound size={19} /></span>

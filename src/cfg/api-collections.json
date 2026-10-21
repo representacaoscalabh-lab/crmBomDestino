@@ -1,0 +1,927 @@
+[
+  {
+    "name": "customers",
+    "description": "Clientes",
+    "access": "approved",
+    "fields": [
+      {
+        "name": "id",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "code",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "store",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "city",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "status",
+        "type": "\"Ativo\" | \"Inativo\" | \"Prospect\"",
+        "optional": false
+      },
+      {
+        "name": "fantasyName",
+        "type": "string",
+        "optional": true
+      },
+      {
+        "name": "document",
+        "type": "string",
+        "optional": true
+      },
+      {
+        "name": "segment",
+        "type": "string",
+        "optional": true
+      },
+      {
+        "name": "paymentTerm",
+        "type": "string",
+        "optional": true
+      },
+      {
+        "name": "representative",
+        "type": "string",
+        "optional": true
+      },
+      {
+        "name": "lastPurchase",
+        "type": "string",
+        "optional": true
+      },
+      {
+        "name": "state",
+        "type": "string",
+        "optional": true
+      },
+      {
+        "name": "address",
+        "type": "string",
+        "optional": true
+      },
+      {
+        "name": "neighborhood",
+        "type": "string",
+        "optional": true
+      },
+      {
+        "name": "phone",
+        "type": "string",
+        "optional": true
+      },
+      {
+        "name": "email",
+        "type": "string",
+        "optional": true
+      },
+      {
+        "name": "groupId",
+        "type": "string",
+        "optional": true
+      },
+      {
+        "name": "createdAt",
+        "type": "Timestamp",
+        "optional": true
+      },
+      {
+        "name": "updatedAt",
+        "type": "Timestamp",
+        "optional": true
+      },
+      {
+        "name": "documentNormalized",
+        "type": "string",
+        "optional": true
+      }
+    ]
+  },
+  {
+    "name": "customer_groups",
+    "description": "Redes de clientes e comissões",
+    "access": "approved",
+    "fields": [
+      {
+        "name": "id",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "commissionPercent",
+        "type": "number",
+        "optional": true
+      },
+      {
+        "name": "sellerCommissionPercent",
+        "type": "number",
+        "optional": true
+      },
+      {
+        "name": "sellerCommissionBase",
+        "type": "\"orders\" | \"representation\"",
+        "optional": true
+      },
+      {
+        "name": "externalStoreSellers",
+        "type": "Record<string, string>",
+        "optional": true,
+        "description": "Store id -> seller name. These stores do not contribute to our dashboard."
+      },
+      {
+        "name": "createdAt",
+        "type": "Timestamp",
+        "optional": true
+      },
+      {
+        "name": "updatedAt",
+        "type": "Timestamp",
+        "optional": true
+      }
+    ]
+  },
+  {
+    "name": "products",
+    "description": "Produtos",
+    "access": "approved",
+    "fields": [
+      {
+        "name": "id",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "codeBox",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "codeHalfBox",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "quantityPerBox",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "weightPerBox",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "pricePerBox",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "status",
+        "type": "\"Ativo\" | \"Inativo\"",
+        "optional": false
+      },
+      {
+        "name": "measure",
+        "type": "\"KG\" | \"UN\"",
+        "optional": true
+      },
+      {
+        "name": "unitWeight",
+        "type": "number",
+        "optional": true
+      },
+      {
+        "name": "unitPrice",
+        "type": "number",
+        "optional": true
+      },
+      {
+        "name": "weightType",
+        "type": "\"Variável\" | \"Fixo\"",
+        "optional": true
+      },
+      {
+        "name": "expiration",
+        "type": "string",
+        "optional": true
+      },
+      {
+        "name": "associated",
+        "type": "string",
+        "optional": true
+      },
+      {
+        "name": "createdAt",
+        "type": "Timestamp",
+        "optional": true
+      },
+      {
+        "name": "updatedAt",
+        "type": "Timestamp",
+        "optional": true
+      }
+    ]
+  },
+  {
+    "name": "orders",
+    "description": "Pedidos e seus itens",
+    "access": "approved",
+    "fields": [
+      {
+        "name": "recordCount",
+        "type": "number",
+        "optional": true,
+        "description": "Number of source orders represented by a dashboard daily aggregate."
+      },
+      {
+        "name": "id",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "preOrder",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "issueDate",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "invoice",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "customerId",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "customerName",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "customerCode",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "store",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "customerCity",
+        "type": "string",
+        "optional": true
+      },
+      {
+        "name": "paymentTerm",
+        "type": "string",
+        "optional": true
+      },
+      {
+        "name": "status",
+        "type": "\"normal\"",
+        "optional": false
+      },
+      {
+        "name": "items",
+        "type": "OrderItem[]",
+        "optional": false
+      },
+      {
+        "name": "totalValue",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "totalWeight",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "createdAt",
+        "type": "Timestamp",
+        "optional": true
+      },
+      {
+        "name": "updatedAt",
+        "type": "Timestamp",
+        "optional": true
+      },
+      {
+        "name": "itemCount",
+        "type": "number",
+        "optional": true
+      }
+    ],
+    "itemFields": [
+      {
+        "name": "productId",
+        "type": "string",
+        "optional": false,
+        "description": "Canonical product document id shared by box and half-box codes."
+      },
+      {
+        "name": "productCode",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "packageKind",
+        "type": "\"Caixa\" | \"Meia caixa\"",
+        "optional": false
+      },
+      {
+        "name": "packageQuantity",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "unitQuantity",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "packagePrice",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "unitPrice",
+        "type": "number",
+        "optional": true,
+        "description": "Price for one individual unit."
+      },
+      {
+        "name": "totalWeight",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "discountPercent",
+        "type": "number",
+        "optional": true
+      },
+      {
+        "name": "subtotal",
+        "type": "number",
+        "optional": true
+      },
+      {
+        "name": "boxQuantity",
+        "type": "number",
+        "optional": true
+      },
+      {
+        "name": "pieces",
+        "type": "number",
+        "optional": true
+      },
+      {
+        "name": "netWeight",
+        "type": "number",
+        "optional": true
+      },
+      {
+        "name": "grossWeight",
+        "type": "number",
+        "optional": true
+      }
+    ]
+  },
+  {
+    "name": "bonifications",
+    "description": "Bonificações e seus itens",
+    "access": "approved",
+    "fields": [
+      {
+        "name": "id",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "bonusNumber",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "issueDate",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "customerId",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "customerName",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "customerCode",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "store",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "customerCity",
+        "type": "string",
+        "optional": true
+      },
+      {
+        "name": "reason",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "notes",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "items",
+        "type": "OrderItem[]",
+        "optional": false
+      },
+      {
+        "name": "totalValue",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "totalWeight",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "createdAt",
+        "type": "Timestamp",
+        "optional": true
+      },
+      {
+        "name": "updatedAt",
+        "type": "Timestamp",
+        "optional": true
+      },
+      {
+        "name": "itemCount",
+        "type": "number",
+        "optional": true
+      }
+    ],
+    "itemFields": [
+      {
+        "name": "productId",
+        "type": "string",
+        "optional": false,
+        "description": "Canonical product document id shared by box and half-box codes."
+      },
+      {
+        "name": "productCode",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "description",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "packageKind",
+        "type": "\"Caixa\" | \"Meia caixa\"",
+        "optional": false
+      },
+      {
+        "name": "packageQuantity",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "unitQuantity",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "packagePrice",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "unitPrice",
+        "type": "number",
+        "optional": true,
+        "description": "Price for one individual unit."
+      },
+      {
+        "name": "totalWeight",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "discountPercent",
+        "type": "number",
+        "optional": true
+      },
+      {
+        "name": "subtotal",
+        "type": "number",
+        "optional": true
+      },
+      {
+        "name": "boxQuantity",
+        "type": "number",
+        "optional": true
+      },
+      {
+        "name": "pieces",
+        "type": "number",
+        "optional": true
+      },
+      {
+        "name": "netWeight",
+        "type": "number",
+        "optional": true
+      },
+      {
+        "name": "grossWeight",
+        "type": "number",
+        "optional": true
+      }
+    ]
+  },
+  {
+    "name": "goals",
+    "description": "Metas comerciais",
+    "access": "approved",
+    "fields": [
+      {
+        "name": "id",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "title",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "type",
+        "type": "\"Mensal\" | \"Anual\"",
+        "optional": false
+      },
+      {
+        "name": "year",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "month",
+        "type": "number",
+        "optional": true
+      },
+      {
+        "name": "targetRevenue",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "targetKg",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "targetCustomers",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "targetConversion",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "status",
+        "type": "\"Ativa\" | \"Inativa\"",
+        "optional": false
+      },
+      {
+        "name": "createdAt",
+        "type": "Timestamp",
+        "optional": true
+      },
+      {
+        "name": "updatedAt",
+        "type": "Timestamp",
+        "optional": true
+      }
+    ]
+  },
+  {
+    "name": "payment_terms",
+    "description": "Condições de pagamento",
+    "access": "approved",
+    "fields": [
+      {
+        "name": "id",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "code",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "term",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "createdAt",
+        "type": "Timestamp",
+        "optional": true
+      },
+      {
+        "name": "updatedAt",
+        "type": "Timestamp",
+        "optional": true
+      }
+    ]
+  },
+  {
+    "name": "users",
+    "description": "Usuários e autorizações",
+    "access": "admin",
+    "fields": [
+      {
+        "name": "uid",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "email",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "status",
+        "type": "\"pending\" | \"approved\" | \"rejected\"",
+        "optional": false
+      },
+      {
+        "name": "role",
+        "type": "\"user\" | \"admin\"",
+        "optional": false
+      },
+      {
+        "name": "createdAt",
+        "type": "Timestamp",
+        "optional": false
+      },
+      {
+        "name": "updatedAt",
+        "type": "Timestamp",
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "access_requests",
+    "description": "Solicitações de acesso",
+    "access": "admin",
+    "fields": [
+      {
+        "name": "uid",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "email",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "name",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "status",
+        "type": "\"pending\" | \"approved\" | \"rejected\"",
+        "optional": false
+      },
+      {
+        "name": "requestedAt",
+        "type": "Timestamp",
+        "optional": false
+      },
+      {
+        "name": "resolvedAt",
+        "type": "Timestamp?",
+        "optional": false
+      },
+      {
+        "name": "resolvedBy",
+        "type": "string?",
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "sellers",
+    "description": "Responsáveis legados; a aplicação usa responsáveis fixos",
+    "access": "approved",
+    "fields": [
+      {
+        "name": "name",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "createdAt",
+        "type": "Timestamp",
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "customer_documents",
+    "description": "Reservas de CNPJ; ID é o documento normalizado",
+    "access": "approved",
+    "fields": [
+      {
+        "name": "customerId",
+        "type": "string",
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "aggregate_states",
+    "description": "Controle interno de idempotência das agregações; sem endpoint de dados",
+    "access": "internal",
+    "fields": [
+      {
+        "name": "hash",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "projection",
+        "type": "{ resource, date, customerId, count, valueCents, weight, products }",
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "settings",
+    "description": "Configurações mart_minas, oesa_nova_safra e read_optimization",
+    "access": "approved",
+    "fields": [
+      {
+        "name": "groupId",
+        "type": "string? (relatórios)",
+        "optional": false
+      },
+      {
+        "name": "reportName",
+        "type": "string? (relatórios)",
+        "optional": false
+      },
+      {
+        "name": "updatedAt",
+        "type": "Timestamp?",
+        "optional": false
+      },
+      {
+        "name": "customerMigration",
+        "type": "boolean? (read_optimization)",
+        "optional": false
+      },
+      {
+        "name": "customerReservations",
+        "type": "boolean? (read_optimization)",
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "daily_orders",
+    "description": "Resumo diário gerado pelas funções; pode não estar ativado",
+    "access": "approved",
+    "fields": [
+      {
+        "name": "date",
+        "type": "string (YYYY-MM-DD)",
+        "optional": false
+      },
+      {
+        "name": "customerId",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "count",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "valueCents",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "weight",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "products",
+        "type": "Record<string, { productId: string; productCode: string; description: string; weight: number; valueCents: number; units: number }>",
+        "optional": false
+      }
+    ]
+  },
+  {
+    "name": "daily_bonifications",
+    "description": "Resumo diário gerado pelas funções; pode não estar ativado",
+    "access": "approved",
+    "fields": [
+      {
+        "name": "date",
+        "type": "string (YYYY-MM-DD)",
+        "optional": false
+      },
+      {
+        "name": "customerId",
+        "type": "string",
+        "optional": false
+      },
+      {
+        "name": "count",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "valueCents",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "weight",
+        "type": "number",
+        "optional": false
+      },
+      {
+        "name": "products",
+        "type": "Record<string, { productId: string; productCode: string; description: string; weight: number; valueCents: number; units: number }>",
+        "optional": false
+      }
+    ]
+  }
+]

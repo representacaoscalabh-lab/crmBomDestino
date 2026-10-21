@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { crmQueryCache, onResourceInvalidated } from "@/lib/query-cache";
 import { hasAdvancedFilters, type RecordCursor, type RecordFilters, type RecordHeader, type RecordPage, type RecordResource, type RecordTotals } from "@/lib/record-query";
 import { recordFirestoreRead } from "@/lib/firestore-metrics";
+import { readRecordResponse } from "@/lib/record-response";
 
 let useClientQueries = false;
 
@@ -14,13 +15,12 @@ export async function recordRequest<T>(body: object): Promise<T> {
   if (!user) throw new Error("Entre na sua conta para consultar os registros.");
   if (useClientQueries) return (await import("@/lib/client-record-query")).clientRecordQuery(body) as Promise<T>;
   const response = await fetch("/api/crm/records", { method: "POST", headers: { "Content-Type": "application/json", authorization: `Bearer ${await user.getIdToken()}` }, body: JSON.stringify(body) });
-  const result = await response.json();
-  if (response.status === 503 && result.code === "server-not-configured") {
+  const result = await readRecordResponse(response);
+  if (result.fallback) {
     useClientQueries = true;
     return (await import("@/lib/client-record-query")).clientRecordQuery(body) as Promise<T>;
   }
-  if (!response.ok) throw new Error(result.error || "Não foi possível consultar os registros.");
-  return result as T;
+  return result.value as T;
 }
 
 export function useRecordPage(resource: RecordResource, filters: RecordFilters) {

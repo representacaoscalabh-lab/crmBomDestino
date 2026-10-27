@@ -3,14 +3,19 @@
 import { ImportIssues } from "@/components/import-issues";
 import { OesaImportModal } from "@/components/oesa-import-modal";
 import { OesaScreenshotsModal } from "@/components/oesa-screenshots-modal";
+import { OrderRemittancesManager } from "@/components/order-remittances-manager";
 
 import { findImportRecords } from "@/lib/import-existing-records";
 import { RecordPagination } from "@/components/record-pagination";
 import { getRecordDetail, useRecordPage } from "@/lib/use-record-page";
 import { importFailureMessage } from "@/lib/import-validation";
+import { createOrderRemittance, failOrderRemittanceImport, finishOrderRemittanceImport } from "@/lib/order-remittances";
+import { useAuth } from "@/lib/auth";
+import { useMartMinasSettings } from "@/lib/mart-minas-settings";
+import { useOesaNovaSafraSettings } from "@/lib/oesa-nova-safra-settings";
 
 import { useMemo, useState } from "react";
-import { CalendarDays, ClipboardList, Database, Download, Eye, FileText, PackageCheck, Pencil, Plus, RefreshCw, Search, ShoppingCart, SlidersHorizontal, Trash2, Upload, UserRound, X } from "lucide-react";
+import { CalendarClock, CalendarDays, ClipboardList, Database, Download, Eye, FileText, Network, PackageCheck, Pencil, Plus, RefreshCw, Search, ShoppingCart, SlidersHorizontal, Trash2, Upload, UserRound, X } from "lucide-react";
 import { useCrmStore, useCrmResources } from "@/lib/store";
 import { getPackageValues } from "@/lib/product-packaging";
 import { downloadXlsx } from "@/lib/xlsx";
@@ -134,6 +139,9 @@ function makeExistingLine(item: OrderItem, products: Product[]): DraftLine {
 
 export default function OrdersPage() {
   const { orders: legacyOrders, products, customers, customerGroups, paymentTerms, addOrders, addBonifications, updateOrder, deleteOrder, deleteOrders, dataError } = useCrmStore();
+  const { crmUser } = useAuth();
+  const martMinasSettings = useMartMinasSettings();
+  const oesaSettings = useOesaNovaSafraSettings();
   const defaultDateRange = currentMonthRange();
   const [searchDraft, setSearchDraft] = useState("");
   const [customerNameDraft, setCustomerNameDraft] = useState("");
@@ -147,6 +155,8 @@ export default function OrdersPage() {
   const [showNetworkImportModal, setShowNetworkImportModal] = useState(false);
   const [showOesaImportModal, setShowOesaImportModal] = useState(false);
   const [showOesaPrints, setShowOesaPrints] = useState(false);
+  const [showImportOptionsModal, setShowImportOptionsModal] = useState(false);
+  const [showRemittances, setShowRemittances] = useState(false);
   const [networkPdf, setNetworkPdf] = useState<File | null>(null);
   const [networkProgress, setNetworkProgress] = useState(0);
   const [networkError, setNetworkError] = useState("");
@@ -190,6 +200,8 @@ export default function OrdersPage() {
   const page = useRecordPage("orders", { start: filters.start, end: filters.end, query: filters.search, customerName: filters.customerName, city: filters.city ? [filters.city] : [], network: filters.network, segment: filters.segment });
   const orders = page.rows.map(row => ({ ...row, items: [] })) as unknown as Array<Order & { itemCount?: number }>;
   const filtered = orders;
+  const pageOrderValue = filtered.reduce((sum, order) => sum + order.totalValue, 0);
+  const pageOrderWeight = filtered.reduce((sum, order) => sum + order.totalWeight, 0);
   const sorted = orders;
   function heading(key: string, label: string, value: (order: Order) => unknown) {
     void value;
@@ -283,20 +295,38 @@ export default function OrdersPage() {
     if (networkImporting || (!networkPreview.length && !networkBonificationsPreview.length)) return;
     setNetworkImporting(true);
     setNetworkError("");
+    let remittanceInfo: { id: string; groupId: string; name: string } | null = null;
+    const actor = { id: crmUser?.uid ?? "", name: crmUser?.name || crmUser?.email || "Usuário" };
     try {
+      if (!martMinasSettings.groupId) throw new Error("Configure a rede Mart Minas em Configurações antes de importar para uma remessa.");
+      const sourceFile = networkPdf?.name ?? "";
+      const name = sourceFile.replace(/\.pdf$/i, "").trim().slice(0, 100) || `Mart Minas ${localDate().split("-").reverse().join("/")}`;
+      const id = await createOrderRemittance({ groupId: martMinasSettings.groupId, network: "mart_minas", name, source: "mart_minas_pdf", sourceFile, actor });
+      remittanceInfo = { id, groupId: martMinasSettings.groupId, name };
       if (networkPreview.length) {
-        await addOrders(networkPreview);
+        await addOrders(networkPreview, id);
         setNetworkPreview([]);
       }
       if (networkBonificationsPreview.length) {
-        await addBonifications(networkBonificationsPreview);
+        await addBonifications(networkBonificationsPreview, id);
         setNetworkBonificationsPreview([]);
       }
+      await finishOrderRemittanceImport(remittanceInfo, networkPreview.length, networkBonificationsPreview.length, actor);
       setShowNetworkImportModal(false);
       setNetworkPreview([]);
       setNetworkWarnings([]);
     } catch (cause) {
-      setNetworkError(importFailureMessage(cause, "Não foi possível salvar os pedidos. Verifique a conexão e tente novamente."));
+      const message = importFailureMessage(cause, "Não foi possível salvar os pedidos. Verifique a conexão e tente novamente.");
+      if (remittanceInfo) {
+        try {
+          await failOrderRemittanceImport(remittanceInfo, message, actor);
+        } catch (logError) {
+          console.error("Falha ao registrar o resultado da importação da remessa.", logError);
+          setNetworkError(`${message} Não foi possível atualizar o histórico da remessa; atualize a página e confira os registros antes de repetir.`);
+          return;
+        }
+      }
+      setNetworkError(message);
     } finally {
       setNetworkImporting(false);
     }
@@ -457,6 +487,7 @@ export default function OrdersPage() {
       customerCity: selectedCustomer.city,
       paymentTerm: paymentTerm.trim(),
       status: "normal",
+      remittanceId: editingOrder?.remittanceId,
       items,
       totalValue: items.reduce((sum, item) => sum + (item.subtotal ?? item.packagePrice * item.packageQuantity), 0),
       totalWeight: items.reduce((sum, item) => sum + (item.grossWeight ?? item.totalWeight), 0),
@@ -539,18 +570,22 @@ export default function OrdersPage() {
   return <div className="page-content module-content order-page">
     <section className="panel module-panel order-module-panel">
       <div className="orders-page-heading">
-        <div className="orders-page-title"><span className="module-title-icon"><ShoppingCart size={21} /></span><h1>Pedidos</h1></div>
+        <div className="orders-page-title"><span className="module-title-icon"><ShoppingCart size={21} /></span><div><h1>Pedidos</h1><p>Pedidos, bonificações e remessas comerciais</p></div></div>
         <div className="orders-page-actions">
           <div className="orders-sync-control">
             <div className="orders-firebase-badge"><span className="orders-database-icon"><Database size={15} /></span><span><strong>Firebase</strong><small>Consulta por página</small></span></div>
             <button className="orders-refresh-button" onClick={() => void refreshOrders()} disabled={refreshing} title={refreshing ? "Atualizando pedidos" : "Atualizar pedidos"} aria-label={refreshing ? "Atualizando pedidos" : "Atualizar pedidos"}><RefreshCw size={14} className={refreshing ? "spin" : ""} /></button>
           </div>
-          <button className="button button-outline orders-import-button" onClick={startNetworkImport}><FileText size={15} /> Importar PDF Mart Minas</button>
-          <button className="button button-outline orders-import-button" onClick={() => setShowOesaImportModal(true)}><FileText size={15} /> Importar PDF OESA</button>
-          <button className="button button-outline orders-import-button" onClick={() => setShowOesaPrints(true)}><Upload size={15} /> Importar por print</button>
+          <button className="button button-outline orders-remittances-button" onClick={() => setShowRemittances(true)} disabled={!martMinasSettings.groupId && !oesaSettings.groupId}><CalendarClock size={15} /> Remessas</button>
+          <button className="button button-outline orders-import-button" onClick={() => setShowImportOptionsModal(true)}><Network size={15} /> Importar redes</button>
           <button className="button button-primary orders-new-button" onClick={openCreateOrder}><Plus size={16} /> Novo pedido</button>
         </div>
       </div>
+      <section className="orders-summary" aria-label="Resumo dos pedidos exibidos">
+        <article><span>Pedidos nesta página</span><strong>{filtered.length.toLocaleString("pt-BR")}</strong><small>{page.totals ? `${page.totals.count.toLocaleString("pt-BR")} no período` : "Resultados carregados"}</small></article>
+        <article><span>Peso exibido</span><strong>{kg(pageOrderWeight)}</strong><small>Soma dos pedidos nesta página</small></article>
+        <article><span>Valor exibido</span><strong>{money(pageOrderValue)}</strong><small>Soma dos pedidos nesta página</small></article>
+      </section>
       <form className="order-filter-card orders-compact-filters" onSubmit={(event) => { event.preventDefault(); if (!invalidFilterDateRange) setFilters({ search: searchDraft, customerName: customerNameDraft, city: cityDraft, segment: segmentDraft, network: networkDraft, start: startDraft, end: endDraft }); }}>
         <div className="orders-quick-filters">
           <div className="search-field"><Search size={17} /><input aria-label="Buscar pedidos por número, nota fiscal, código ou CNPJ" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Buscar pedido, NF, código ou CNPJ" /></div>
@@ -587,6 +622,30 @@ export default function OrdersPage() {
       <RecordPagination page={page} />
     </section>
 
+    {showImportOptionsModal && <div className="modal-backdrop order-image-import-backdrop orders-import-options-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowImportOptionsModal(false); }}>
+      <section className="order-image-import-modal orders-import-options-modal" role="dialog" aria-modal="true" aria-labelledby="orders-import-options-title">
+        <div className="order-editor-heading">
+          <div className="order-editor-icon"><Network size={21} /></div>
+          <div><p className="eyebrow">IMPORTAÇÃO DE PEDIDOS</p><h2 id="orders-import-options-title">Importar redes</h2><p>Escolha o formato de importação da rede.</p></div>
+          <button type="button" className="icon-button" aria-label="Fechar opções de importação" onClick={() => setShowImportOptionsModal(false)}><X size={20} /></button>
+        </div>
+        <div className="orders-import-options-list">
+          <button type="button" disabled={!martMinasSettings.groupId} onClick={() => { setShowImportOptionsModal(false); startNetworkImport(); }}>
+            <span className="orders-import-option-icon"><FileText size={18} /></span><span><strong>Mart Minas</strong><small>Importar pedidos e bonificações de PDF</small></span><span className="orders-import-option-kind">PDF</span>
+          </button>
+          <button type="button" disabled={!oesaSettings.groupId} onClick={() => { setShowImportOptionsModal(false); setShowOesaImportModal(true); }}>
+            <span className="orders-import-option-icon"><FileText size={18} /></span><span><strong>OESA</strong><small>Importar pedidos de arquivo PDF</small></span><span className="orders-import-option-kind">PDF</span>
+          </button>
+          <button type="button" onClick={() => { setShowImportOptionsModal(false); setShowOesaPrints(true); }}>
+            <span className="orders-import-option-icon"><Upload size={18} /></span><span><strong>Importar por print</strong><small>Enviar capturas de tela de pedidos OESA</small></span><span className="orders-import-option-kind">Imagem</span>
+          </button>
+        </div>
+      </section>
+    </div>}
+    {showRemittances && <OrderRemittancesManager networks={[
+      ...(martMinasSettings.groupId ? [{ groupId: martMinasSettings.groupId, network: "mart_minas" as const, label: martMinasSettings.reportName || "Mart Minas" }] : []),
+      ...(oesaSettings.groupId ? [{ groupId: oesaSettings.groupId, network: "oesa" as const, label: oesaSettings.reportName || "OESA" }] : []),
+    ]} customers={customers} onClose={() => setShowRemittances(false)} />}
     {showOesaImportModal && <OesaImportModal onClose={() => setShowOesaImportModal(false)} />}
     {showOesaPrints && <OesaScreenshotsModal onClose={() => setShowOesaPrints(false)} />}
     {showNetworkImportModal && <div className="modal-backdrop order-image-import-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !networkImporting) setShowNetworkImportModal(false); }}>

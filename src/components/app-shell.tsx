@@ -9,7 +9,9 @@ import {
   ChevronUp,
   ClipboardList,
   Download,
+  FileSpreadsheet,
   Gift,
+  LayoutGrid,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -58,6 +60,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(() => pathname.startsWith("/relatorios") || pathname.startsWith("/crescimento"));
   const [darkMode, setDarkMode] = useState(false);
+  const [areaChooserOpen, setAreaChooserOpen] = useState(true);
   const activeLabel = [...navigation, ...reportLinks].find((item) => item.href === pathname)?.label ?? (pathname === "/configuracoes" ? "Configurações" : "Bom Destino");
 
   function toggleTheme() {
@@ -66,6 +69,35 @@ export function AppShell({ children }: { children: ReactNode }) {
       document.documentElement.classList.toggle("dark-theme", next);
       return next;
     });
+  }
+
+  if (areaChooserOpen) {
+    const startAreas = [
+      { href: "/", label: "Dashboard", description: "Indicadores e visão geral das vendas", icon: LayoutGrid, color: "dashboard" },
+      { href: "/clientes", label: "Clientes", description: "Consulte e gerencie sua carteira", icon: UsersRound, color: "customers" },
+      { href: "/pedidos", label: "Pedidos", description: "Digite e acompanhe os pedidos", icon: ShoppingCart, color: "orders" },
+      { href: "/relatorios/mart-minas", label: "Relatórios e exportação Mart Minas", description: "Analise os resultados e exporte os dados exibidos", icon: FileSpreadsheet, color: "reports" },
+    ];
+    return (
+      <main className="start-screen">
+        <section className="start-screen-content" aria-labelledby="start-screen-title">
+          <div className="start-brand-mark" aria-hidden="true"><Image src="/logo-bom-destino.jpg" alt="" width={44} height={44} priority /></div>
+          <span className="start-brand-name">BOM DESTINO · CRM COMERCIAL</span>
+          <h1 id="start-screen-title">Onde você quer começar?</h1>
+          <p>Escolha a área do Bom Destino que você quer consultar.</p>
+          <nav className="start-area-grid" aria-label="Escolha uma área do CRM">
+            {startAreas.map(({ href, label, description, icon: Icon, color }) => (
+              <Link href={href} key={href} className={`start-area-card start-area-${color}`} onClick={() => setAreaChooserOpen(false)}>
+                <span className="start-area-icon"><Icon size={20} strokeWidth={2} /></span>
+                <strong>{label}</strong>
+                <span className="start-area-description">{description}</span>
+              </Link>
+            ))}
+          </nav>
+          <button type="button" className="start-screen-signout" onClick={() => void signOutUser()}><LogOut size={16} /> Sair da conta</button>
+        </section>
+      </main>
+    );
   }
 
   return (

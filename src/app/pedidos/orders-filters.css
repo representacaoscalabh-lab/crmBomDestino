@@ -17,3 +17,122 @@
 @media (max-width: 1200px) { .orders-quick-filters { grid-template-columns: minmax(270px, 1fr) auto auto 40px; }.orders-quick-filters > .search-field { grid-column: 1 / -1; }.orders-extra-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .order-page .orders-compact-filters { padding: 14px; }.orders-quick-filters { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 40px; gap: 8px; }.orders-compact-period { grid-column: 1 / -1; }.orders-compact-period input { width: 100%; }.orders-quick-filters > .button { padding: 0 12px; font-size: 12px; }.orders-extra-filters { grid-template-columns: 1fr; } }
 .network-import-type-heading { margin: 8px 0 0; color: var(--ink); font-size: 14px; font-weight: 650; }
+.order-page { gap: 14px; }
+.order-page .order-module-panel { padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.order-page .module-title-icon { border-color: #eadbdd; background: var(--brand-soft); color: var(--brand); }
+.order-page .module-title-copy h1 { color: var(--ink); font-size: 24px; }
+.orders-summary { padding: 14px 0 12px; }
+.order-page .orders-compact-filters { border-radius: 13px; background: var(--surface-soft); }
+.orders-quick-filters .search-field, .orders-compact-period, .orders-extra-filters select { border-radius: 9px; }
+.order-list-panel { overflow: hidden; border-radius: 15px; }
+.order-count-bar { min-height: 52px; }
+.dark-theme .order-page .module-title-icon { border-color: #564047; background: #34282d; color: #e6b9c0; }
+.dark-theme .order-page .orders-compact-filters { border-color: var(--line); background: #25232a; }
+.dark-theme .orders-quick-filters .search-field, .dark-theme .orders-compact-period, .dark-theme .orders-extra-filters select { border-color: #4a4146; background: #1b191d; color: #f1ebed; }
+.dark-theme .order-page .order-module-panel { border: 0; background: transparent; box-shadow: none; }
+
+.orders-page-title > div { display: flex; flex-direction: column; gap: 4px; }
+.orders-page-title h1 { display: flex; align-items: center; gap: 9px; }
+.orders-page-title p { margin: 0; color: var(--muted); font-size: 12px; }
+.order-page .orders-summary { width: min(100%, 930px); grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 10px 0 14px; margin: 0 auto; }
+.order-page .orders-summary article { min-width: 0; min-height: 78px; padding: 12px 15px; }
+.order-page .orders-summary article > span, .order-page .orders-summary article > small { line-height: 1.35; }
+.order-page .orders-summary article > strong { overflow: hidden; font-size: clamp(14px, 1.8vw, 21px); text-overflow: ellipsis; white-space: nowrap; }
+.dark-theme .orders-page-title p { color: var(--muted); }
+.order-page .orders-sync-control { min-height: 31px; gap: 2px; padding: 2px 3px 2px 5px; border-color: #ede5e6; border-radius: 8px; background: rgb(255 255 255 / 70%); }
+.order-page .orders-sync-control .orders-firebase-badge { gap: 5px; min-height: 25px; }
+.order-page .orders-database-icon { width: 22px; height: 22px; border-radius: 6px; background: #f8f3f4; }
+.order-page .orders-firebase-badge strong { font-size: 9px; }
+.order-page .orders-firebase-badge small { font-size: 7.5px; }
+.order-page .orders-page-actions .orders-refresh-button { width: 23px; height: 23px; color: #897a7d; }
+.order-page .orders-page-actions .orders-refresh-button svg { width: 12px; height: 12px; }
+.orders-import-options-modal { width: min(100%, 520px); }
+.orders-import-options-list { display: flex; flex-direction: column; gap: 9px; padding: 16px 20px 20px; background: var(--surface-soft); }
+.orders-import-options-list > button { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; padding: 12px; border: 1px solid var(--border-soft); border-radius: 10px; background: var(--surface); color: var(--ink); text-align: left; cursor: pointer; transition: border-color .16s ease, background .16s ease, transform .16s ease; }
+.orders-import-options-list > button:hover { transform: translateY(-1px); border-color: #d7b8bd; background: #fffafb; }
+.orders-import-option-icon { display: grid; width: 36px; height: 36px; flex: 0 0 36px; place-items: center; border-radius: 9px; background: var(--brand-soft); color: var(--brand); }
+.orders-import-options-list > button > span:nth-child(2) { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
+.orders-import-options-list strong { font-size: 12px; }
+.orders-import-options-list small { color: var(--muted); font-size: 10px; }
+.orders-import-option-kind { padding: 4px 7px; border: 1px solid var(--border-soft); border-radius: 6px; color: var(--muted); font-size: 9px; white-space: nowrap; }
+.dark-theme .order-page .orders-sync-control { border-color: var(--line); background: transparent; }
+.dark-theme .order-page .orders-database-icon { background: #34282d; }
+.dark-theme .orders-import-options-list { background: #171519; }
+.dark-theme .orders-import-options-list > button { border-color: var(--line); background: var(--surface); color: var(--ink); }
+.dark-theme .orders-import-options-list > button:hover { border-color: #76565d; background: #292226; }
+.dark-theme .orders-import-option-kind { border-color: var(--line); }
+.orders-page-actions .orders-remittances-button { min-height: 34px; padding: 0 11px; font-size: 12px; }
+.remittance-manager-backdrop { z-index: 90; }
+.remittance-manager { display: flex; width: min(100%, 920px); max-height: min(88dvh, 780px); flex-direction: column; overflow: hidden; border: 1px solid var(--border-soft); border-radius: 16px; background: var(--surface); color: var(--ink); box-shadow: 0 28px 90px rgb(39 21 26 / 30%); }
+.remittance-manager > .order-editor-heading { flex: 0 0 auto; border-radius: 15px 15px 0 0; background: var(--surface); }
+.remittance-manager-toolbar { display: flex; flex: 0 0 auto; align-items: end; justify-content: space-between; gap: 16px; padding: 12px 22px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.remittance-manager-toolbar > label { display: flex; min-width: 180px; flex-direction: column; gap: 6px; color: var(--muted); font-size: 12px; }
+.remittance-manager-toolbar select, .remittance-create-form input, .remittance-rename-form input { min-height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
+.remittance-manager-tabs { display: flex; gap: 6px; }
+.remittance-manager-tabs button { display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); cursor: pointer; }
+.remittance-manager-tabs button[aria-selected="true"] { border-color: #d7b8bd; background: var(--brand-soft); color: var(--brand); }
+.remittance-manager-body, .remittance-history { min-height: 0; flex: 1 1 auto; overflow: auto; padding: 18px 22px; background: var(--surface); }
+.remittance-create-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 12px; padding: 15px; margin: 0 0 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); }
+.remittance-create-form label { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 6px; color: var(--muted); font-size: 12px; }
+.remittance-create-form input { width: 100%; min-height: 42px; }
+.remittance-create-form .button { min-height: 42px; }
+.remittance-list { display: grid; gap: 9px; }
+.remittance-card { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.remittance-card-copy, .remittance-card-copy > :not(form) { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
+.remittance-card-copy > strong { color: var(--ink); font-size: 13px; }
+.remittance-card-copy span, .remittance-card-copy small { color: var(--muted); font-size: 11px; }
+.remittance-card-actions { display: flex; align-items: center; gap: 6px; }
+.remittance-rename-form { display: flex; flex-wrap: wrap; gap: 6px; }
+.remittance-empty, .remittance-no-records, .remittance-loading { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 24px; color: var(--muted); font-size: 12px; }
+.remittance-empty { min-height: 96px; flex-direction: column; border: 1px dashed var(--line); border-radius: 10px; background: var(--surface-soft); text-align: center; }
+.remittance-empty > svg { color: var(--brand); }
+.remittance-empty strong { color: var(--ink); font-size: 13px; }
+.remittance-empty > span { font-size: 11px; }
+.remittance-assignment-heading, .remittance-assignment-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.remittance-assignment-heading > div { display: flex; flex-direction: column; gap: 4px; }
+.remittance-assignment-heading span, .remittance-assignment-footer > span { color: var(--muted); font-size: 11px; }
+.remittance-search { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); }
+.remittance-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); }
+.remittance-search-form { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; margin-bottom: 12px; }
+.remittance-search-form .remittance-search { min-width: 0; height: 42px; }
+.remittance-search-form > .button { min-height: 42px; }
+.remittance-record-list { display: grid; gap: 7px; max-height: min(30vh, 300px); overflow: auto; padding: 10px 0; }
+.remittance-record-list > strong { padding-top: 5px; font-size: 12px; }
+.remittance-load-more { justify-self: center; margin: 4px 0; }
+.remittance-record-option { display: flex; align-items: center; gap: 9px; padding: 9px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.remittance-record-option > span { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }
+.remittance-record-option small, .remittance-record-option em { color: var(--muted); font-size: 10px; font-style: normal; }
+.remittance-manager-error { flex: 0 0 auto; margin: 10px 22px 0; }
+.remittance-history { display: grid; gap: 8px; }
+.remittance-history-event { display: grid; grid-template-columns: 28px minmax(0, 1fr); align-items: start; gap: 10px; padding: 11px; border: 1px solid var(--line); border-radius: 9px; }
+.remittance-history-icon { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 8px; background: var(--brand-soft); color: var(--brand); }
+.remittance-history-event > div { display: flex; flex-direction: column; gap: 4px; }
+.remittance-history-event p { margin: 0; color: var(--ink); font-size: 12px; }
+.remittance-history-event small, .remittance-history-time { color: var(--muted); font-size: 10px; }
+.remittance-manager > .order-editor-footer { flex: 0 0 auto; align-items: center; justify-content: space-between; min-height: 60px; padding: 11px 22px; border-radius: 0 0 15px 15px; background: var(--surface); }
+.dark-theme .remittance-manager-toolbar select, .dark-theme .remittance-create-form input, .dark-theme .remittance-rename-form input { background: var(--surface); color: var(--ink); }
+.dark-theme .remittance-manager { border-color: var(--border-soft); background: var(--surface); }
+.dark-theme .remittance-create-form { border-color: var(--line); background: var(--surface-soft); }
+@media (max-width: 650px) {
+  .remittance-manager { width: 100%; max-height: 94dvh; border-radius: 16px 16px 0 0; }
+  .remittance-manager > .order-editor-heading { border-radius: 15px 15px 0 0; }
+  .remittance-manager-toolbar, .remittance-card { align-items: stretch; flex-direction: column; }
+  .remittance-manager-toolbar { padding: 12px 16px; }
+  .remittance-manager-body, .remittance-history { padding: 14px 16px; }
+  .remittance-create-form { grid-template-columns: minmax(0, 1fr); gap: 9px; padding: 12px; }
+  .remittance-manager-tabs button { justify-content: center; flex: 1; }
+  .remittance-card-actions { justify-content: flex-end; }
+  .remittance-search-form { grid-template-columns: minmax(0, 1fr) auto; }
+  .remittance-search-form .remittance-search { grid-column: 1 / -1; }
+  .remittance-record-list { max-height: 32vh; }
+  .remittance-manager > .order-editor-footer { padding: 10px 16px; border-radius: 0; }
+  .remittance-history a { grid-template-columns: 16px minmax(0, 1fr); }
+  .remittance-history time { grid-column: 2; }
+}
+@media (max-width: 600px) {
+  .order-page .orders-summary { grid-template-columns: repeat(3, minmax(150px, 1fr)); gap: 7px; padding: 8px 0 12px; overflow-x: auto; }
+  .order-page .orders-summary article { min-height: 70px; padding: 9px 10px; }
+  .order-page .orders-summary article > span, .order-page .orders-summary article > small { font-size: 9px; }
+  .order-page .orders-summary article > strong { font-size: clamp(13px, 3.2vw, 17px); }
+  .orders-import-options-list { padding: 13px; }
+}

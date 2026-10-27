@@ -53,12 +53,12 @@ type CrmStore = {
   addProduct: (product: NewProduct) => Promise<void>;
   updateProduct: (id: string, product: NewProduct) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
-  addOrders: (orders: Order[]) => Promise<void>;
+  addOrders: (orders: Order[], remittanceId?: string) => Promise<void>;
   updateOrder: (id: string, order: Order) => Promise<void>;
   deleteOrder: (id: string) => Promise<void>;
   deleteOrders: (ids: string[]) => Promise<void>;
   addBonification: (bonification: Omit<Bonification, "id">) => Promise<void>;
-  addBonifications: (bonifications: Omit<Bonification, "id">[]) => Promise<void>;
+  addBonifications: (bonifications: Omit<Bonification, "id">[], remittanceId?: string) => Promise<void>;
   updateBonification: (id: string, bonification: Omit<Bonification, "id">) => Promise<void>;
   deleteBonification: (id: string) => Promise<void>;
 };
@@ -309,7 +309,7 @@ function SessionStore({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const addOrders = useCallback(async (newOrders: Order[]) => {
+  const addOrders = useCallback(async (newOrders: Order[], remittanceId?: string) => {
     const ids = new Set<string>();
     for (const order of newOrders) {
       const id = getOrderDocumentId(order.preOrder, order.customerId);
@@ -328,7 +328,7 @@ function SessionStore({ children }: { children: ReactNode }) {
           const snapshots = await Promise.all(refs.map((ref) => transaction.get(ref)));
           const duplicateIndex = snapshots.findIndex((snapshot) => snapshot.exists());
           if (duplicateIndex !== -1) throw new ImportValidationError(`Pedido ${chunk[duplicateIndex].preOrder} já existe para este cliente. Leia o PDF novamente para atualizar a prévia; o pedido existente não foi alterado.`);
-          chunk.forEach((order, index) => transaction.set(refs[index], { ...normalizeOrder(order), itemCount: order.items.length, id: refs[index].id, updatedAt: serverTimestamp() }));
+          chunk.forEach((order, index) => transaction.set(refs[index], { ...normalizeOrder(order), ...(remittanceId ? { remittanceId } : {}), itemCount: order.items.length, id: refs[index].id, updatedAt: serverTimestamp() }));
         });
         saved += chunk.length;
       }
@@ -364,12 +364,13 @@ function SessionStore({ children }: { children: ReactNode }) {
     await addDoc(collection(db, "bonifications"), { ...bonification, itemCount: bonification.items.length, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
   }, []);
 
-  const addBonifications = useCallback(async (newBonifications: Omit<Bonification, "id">[]) => {
+  const addBonifications = useCallback(async (newBonifications: Omit<Bonification, "id">[], remittanceId?: string) => {
     for (let start = 0; start < newBonifications.length; start += 450) {
       const batch = writeBatch(db);
       newBonifications.slice(start, start + 450).forEach((bonification) => {
         batch.set(doc(collection(db, "bonifications")), {
           ...bonification,
+          ...(remittanceId ? { remittanceId } : {}),
           itemCount: bonification.items.length,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),

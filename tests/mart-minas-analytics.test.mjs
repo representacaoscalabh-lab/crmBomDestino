@@ -207,7 +207,9 @@ test("relatorio OESA usa configuracao propria no mesmo layout sem misturar lojas
     "@/lib/store": { useCrmStore: () => ({ customers: [...customers, { ...customers[0], id: "oesa-c1", groupId: "oesa" }], customerGroups: [group, oesaGroup], orders: [order("oesa-1", "oesa-c1", "2026-10-10", 50), order("mart-1", "c1", "2026-10-10", 500)], products: [] }) },
     "@/lib/oesa-nova-safra-settings": { useOesaNovaSafraSettings: () => ({ groupId: selected, reportName: "", loading: false, error: "" }) },
     "@/lib/mart-minas-analytics": { saoPauloToday: () => "2026-10-20" },
+    "@/lib/order-remittances": { useOrderRemittances: () => ({ remittances: [{ id: "rem-1", name: "Primeira remessa" }], loading: false, error: "" }) },
     "@/components/network-commission-report": { NetworkCommissionReport: props => { captured = props; return props.sidebar; } },
+    "@/components/network-remittances-report": { NetworkRemittancesReport: () => null },
     "@/components/store-growth-report": { StoreGrowthReport: () => null },
     "@/components/store-products-report": { StoreProductsReport: () => null },
     "@/components/network-products-report": { NetworkProductsReport: () => null },
@@ -254,9 +256,11 @@ test("Mart Minas filtra comissao por periodo e responsavel sem duplicar bases", 
     const mocks = {
       react: { ...React, useState: (initial) => React.useState(stateIndex++ === 2 ? scope : initial) },
       "@/lib/store": { useCrmStore: () => ({ customers, customerGroups: [group], orders: [order("ok", "c1", "2026-10-10", 10), order("seller", "c2", "2026-10-12", 20), order("old", "c1", "2026-09-30", 100), order("future", "c1", "2026-10-21", 100), order("wallet", "c1", "2026-10-12", 100, { status: "wallet" })] }) },
+      "@/lib/order-remittances": { useOrderRemittances: () => ({ remittances: [{ id: "rem-1", name: "Primeira remessa" }], loading: false, error: "" }) },
       "@/lib/mart-minas-settings": { useMartMinasSettings: () => ({ groupId: "g1", loading: false, error: "" }) },
       "@/lib/mart-minas-analytics": { saoPauloToday: () => "2026-10-20" },
       "@/components/network-commission-report": { NetworkCommissionReport: (props) => { captured = props; return props.sidebar; } },
+      "@/components/network-remittances-report": { NetworkRemittancesReport: () => null },
       "./report.css": {},
     "./workspace.css": {},
     "./clean.css": {},
@@ -276,4 +280,35 @@ test("Mart Minas filtra comissao por periodo e responsavel sem duplicar bases", 
     assert.match(html, /Mesclado/);
     assert.doesNotMatch(html, /Comparativo por loja|Bonifica/);
   }
+});
+
+test("filtro de remessa afeta o relatório e oferece a mesma opção em redes configuradas", () => {
+  let stateIndex = 0;
+  let captured;
+  const { NetworkReportsPage } = loadModule("../src/components/network-reports-page.tsx", id => {
+    if (id === "react") return { ...React, useState: initial => {
+      const index = stateIndex++;
+      return React.useState(index === 4 ? "rem-1" : initial);
+    } };
+    if (id === "@/lib/store") return { useCrmStore: () => ({ customers, customerGroups: [group], products: [] }) };
+    if (id === "@/lib/order-remittances") return { useOrderRemittances: () => ({ remittances: [{ id: "rem-1", name: "Primeira remessa" }, { id: "rem-2", name: "Segunda remessa" }], loading: false, error: "" }) };
+    if (id === "@/lib/use-period-records") return { usePeriodRecords: () => ({ rows: [
+      order("first", "c1", "2026-10-10", 10, { remittanceId: "rem-1" }),
+      order("second", "c1", "2026-10-11", 20, { remittanceId: "rem-2" }),
+    ], loading: false }) };
+    if (id === "@/components/network-commission-report") return { NetworkCommissionReport: props => { captured = props; return props.sidebar; } };
+    if (id === "@/components/network-remittances-report") return { NetworkRemittancesReport: () => null };
+    if (id === "@/components/store-growth-report" || id === "@/components/store-products-report" || id === "@/components/network-products-report") return { StoreGrowthReport: () => null, StoreProductsReport: () => null, NetworkProductsReport: () => null };
+    if (id === "@/lib/mart-minas-analytics") return { saoPauloToday: () => "2026-10-20" };
+    if (id.endsWith(".css")) return {};
+    return nodeRequire(id);
+  });
+  const html = renderToStaticMarkup(React.createElement(NetworkReportsPage, {
+    settings: { groupId: "g1", reportName: "Mart Minas", loading: false, error: "" },
+    defaultTitle: "Mart Minas",
+  }));
+  assert.equal(captured.report.allStores.find(row => row.customer.id === "c1").current.revenue, 100);
+  assert.match(html, /Todas as remessas/);
+  assert.match(html, /Primeira remessa/);
+  assert.match(html, /Segunda remessa/);
 });

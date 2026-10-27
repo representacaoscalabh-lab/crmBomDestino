@@ -1,14 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import { useAuth } from "@/lib/auth";
 import { findImportRecords } from "@/lib/import-existing-records";
 import { useCrmStore } from "@/lib/store";
+import { useOesaNovaSafraSettings } from "@/lib/oesa-nova-safra-settings";
+import { createOrderRemittance, failOrderRemittanceImport, finishOrderRemittanceImport } from "@/lib/order-remittances";
 import { buildOesaOrderImport, parseOesaOrderPdf, updateOesaItem, updateOesaOrder } from "@/lib/oesa-order-pdf";
 import type { Order } from "@/lib/types";
 import { ImportIssues } from "@/components/import-issues";
 
 export function OesaImportModal({ onClose }: { onClose: () => void }) {
   const { customers, products, orders, addOrders } = useCrmStore();
+  const { crmUser } = useAuth();
+  const oesaSettings = useOesaNovaSafraSettings();
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -48,7 +53,10 @@ export function OesaImportModal({ onClose }: { onClose: () => void }) {
   async function save() {
     if (busy || !preview.length) return;
     setBusy(true); setError("");
+    let remittance: { id: string; groupId: string; name: string } | null = null;
+    const actor = { id: crmUser?.uid ?? "", name: crmUser?.name || crmUser?.email || "Usuário" };
     try {
+      if (!oesaSettings.groupId) throw new Error("Configure a rede OESA em Configurações antes de importar para uma remessa.");
       if (preview.some((order) => !order.preOrder.trim() || !order.issueDate)) throw new Error("Preencha o número e a data de todos os pedidos.");
       const identities = preview.map((order) => `${order.customerId}:${order.preOrder.trim()}`);
       if (new Set(identities).size !== identities.length) throw new Error("Existem pedidos com o mesmo número para o mesmo cliente na conferência.");
@@ -59,8 +67,25 @@ export function OesaImportModal({ onClose }: { onClose: () => void }) {
         if (!product || !Number.isFinite(item.unitPrice) || (item.unitPrice ?? -1) < 0 || !(product.quantityPerBox > 0) || !Number.isFinite(product.quantityPerBox) || !Number.isFinite(item.packageQuantity) || item.packageQuantity <= 0) throw new Error("Confira os produtos, caixas e preços antes de importar.");
         return updateOesaItem(product, item.packageQuantity, item.unitPrice!);
       })));
-      await addOrders(validated); onClose();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Não foi possível salvar os pedidos."); }
+      const sourceFile = file?.name ?? "";
+      const name = sourceFile.replace(/\.pdf$/i, "").trim().slice(0, 100) || `OESA ${new Intl.DateTimeFormat("pt-BR").format(new Date())}`;
+      const id = await createOrderRemittance({ groupId: oesaSettings.groupId, network: "oesa", name, source: "oesa_pdf", sourceFile, actor });
+      remittance = { id, groupId: oesaSettings.groupId, name };
+      await addOrders(validated, id);
+      await finishOrderRemittanceImport(remittance, validated.length, 0, actor);
+      onClose();
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Não foi possível salvar os pedidos.";
+      if (remittance) {
+        try { await failOrderRemittanceImport(remittance, message, actor); }
+        catch (logError) {
+          console.error("Falha ao registrar o resultado da importação OESA.", logError);
+          setError(`${message} Não foi possível atualizar o histórico da remessa; atualize a página e confira os registros antes de repetir.`);
+          return;
+        }
+      }
+      setError(message);
+    }
     finally { setBusy(false); }
   }
   const money = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });

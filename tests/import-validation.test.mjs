@@ -31,8 +31,17 @@ function load(name) {
 
 const { prepareCustomerImport, validateCustomerBatch } = load("customer-import");
 const { SPREADSHEET_ROW_NUMBER, ImportValidationError } = load("import-validation");
+const { isExportPeriodWithinLimit } = load("export-period");
 const { readOrderLines, parseNetworkOrderPage, classifyNetworkOrderTitle, buildNetworkOrderImport, buildNetworkBonificationImport } = load("network-order-pdf");
 const customer = { id: "c1", code: "21000", name: "Loja", document: "04.737.552/0015-33", store: "1", city: "Alfenas", status: "Ativo" };
+
+test("export period helper enforces valid dates and a maximum of 31 inclusive days", () => {
+  assert.equal(isExportPeriodWithinLimit("2026-10-01", "2026-10-31"), true);
+  assert.equal(isExportPeriodWithinLimit("2026-02-01", "2026-02-28"), true);
+  assert.equal(isExportPeriodWithinLimit("2026-10-01", "2026-11-01"), false);
+  assert.equal(isExportPeriodWithinLimit("2026-10-02", "2026-10-01"), false);
+  assert.equal(isExportPeriodWithinLimit("2026-02-31", "2026-03-01"), false);
+});
 const row = (document, name = "Loja", code = "21000") => ({ "Código": code, Cliente: name, CNPJ: document });
 const product = { id: "p1", description: "Produto", codeBox: "13444", codeHalfBox: "13444-M", quantityPerBox: 12, weightPerBox: 6, pricePerBox: 102, status: "Ativo" };
 const pdf = { orderNumber: "6388342", customerCnpj: "04737552001533", issueDate: "2026-10-08", documentType: "order", documentTitle: "PEDIDO DE COMPRAS", lines: [{ supplierCode: "13444", quantity: 2, canceledQuantity: 0, unitPackagePrice: 106 }] };
@@ -116,33 +125,34 @@ test("nossa carteira recebe somente nossa comissao", () => {
   assert.equal(result.rows[0].sellerPercent, 2);
   assert.equal(result.pendingSellerStores, 0);
   const { createCommissionWorkbook } = load("network-commission-export");
-  const workbook = createCommissionWorkbook(rows, rows, { name: "Rede", start: "2026-10-01", end: "2026-10-19", scope: "Nossa carteira", status: "Normais", percent: 5, sellerPercent: 2, search: "", city: "", activity: "all" });
+  const workbook = createCommissionWorkbook(rows, { name: "Rede", start: "2026-10-01", end: "2026-10-19", scope: "Nossa carteira", status: "Normais", percent: 5, sellerPercent: 2, search: "", city: "", activity: "all" });
   assert.equal(workbook.Sheets["Comissão por loja"].J15.v, 50);
   assert.equal(workbook.Sheets["Comissão por loja"].K15.v, 0);
   assert.equal(workbook.Sheets["Comissão por loja"].L15.v, 0);
 });
 
-test("XLS de comissao inclui todas as lojas e resumo acima do detalhamento", () => {
+test("XLS de comissao inclui somente as lojas exibidas e resume os filtros aplicados", () => {
   const { createCommissionWorkbook } = load("network-commission-export");
   const XLS = nodeRequire("@e965/xlsx");
   const rows = buildNetworkCommission([
     { customer: { ...customer, id: "c1", name: "Loja A", code: "0002" }, seller: "", current: { revenue: 100, orders: 1 } },
     { customer: { ...customer, id: "c2", name: "Loja B", code: "02815" }, seller: "Maria", current: { revenue: 200, orders: 2 } },
-  ], 5);
+  ], 5, 2, "orders");
   const context = { name: "Nova Safra", start: "2026-10-01", end: "2026-10-19", scope: "Dados mesclados", status: "Normais", percent: 5, search: "Loja B", city: "", activity: "with" };
-  const workbook = createCommissionWorkbook([rows[1]], rows, context);
+  const workbook = createCommissionWorkbook([rows[1]], context);
   const data = XLS.write(workbook, { bookType: "biff8", type: "buffer" });
   const read = XLS.read(data, { type: "buffer" });
   const sheet = read.Sheets["Comissão por loja"];
   assert.deepEqual(read.SheetNames, ["Comissão por loja"]);
-  assert.equal(sheet.B15.v, "0002");
-  assert.equal(sheet.B16.v, "02815");
-  assert.equal(sheet.J15.v, 5);
+  assert.equal(sheet.B15.v, "02815");
+  assert.equal(sheet.J15.v, 0);
   assert.equal(sheet.J16.v, 0);
-  assert.equal(sheet.J17.v, 5);
-  assert.equal(sheet.B5.v, 300);
-  assert.equal(sheet.B7.v, 5);
-  assert.equal(sheet.B9.v, 5);
+  assert.equal(sheet.B5.v, 200);
+  assert.equal(sheet.B7.v, 0);
+  assert.equal(sheet.B8.v, 4);
+  assert.equal(sheet.B9.v, 4);
+  assert.match(sheet.B10.v, /Busca: Loja B; cidade: Todas; movimentação: Com pedidos/);
+  assert.equal(sheet.A16.v, "TOTAL APÓS FILTROS");
   assert.equal(sheet.A14.v, "Cliente");
 });
 

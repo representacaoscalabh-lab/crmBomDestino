@@ -3,7 +3,7 @@
 import { useTableSort } from "@/components/sort-heading";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Building2, ChevronDown, Download, MapPin, Network, Pencil, Plus, Search, SlidersHorizontal, Trash2, Upload, UsersRound, X } from "lucide-react";
+import { Building2, ChevronDown, Download, Eye, MapPin, Network, Pencil, Plus, Search, SlidersHorizontal, Trash2, Upload, UsersRound, X } from "lucide-react";
 import { ImportIssues } from "@/components/import-issues";
 import { prepareCustomerImport } from "@/lib/customer-import";
 import { customerValidation, normalizeCnpj, ImportValidationError, importFailureMessage } from "@/lib/import-validation";
@@ -50,6 +50,7 @@ export default function CustomersPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [customerDetails, setCustomerDetails] = useState<Customer | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Customer | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [customerIssues, setCustomerIssues] = useState<string[]>([]);
@@ -295,7 +296,7 @@ export default function CustomersPage() {
     <div className="page-content module-content customer-directory">
       <section className="customer-controls">
         <div className="customer-page-heading">
-          <div><h1>Clientes</h1><p>Gerencie sua carteira de clientes.</p></div>
+          <div className="customer-heading-copy"><span className="customer-heading-icon"><UsersRound size={21} /></span><div><p className="eyebrow">RELACIONAMENTO COMERCIAL</p><h1>Clientes <span className="customer-heading-count">{customers.length}</span></h1><p>Consulte sua carteira e mantenha os dados comerciais atualizados.</p></div></div>
           <div className="customer-page-actions">
             <details className="customer-actions-menu" ref={actionsRef}>
               <summary>Mais ações <ChevronDown size={15} /></summary>
@@ -309,22 +310,30 @@ export default function CustomersPage() {
             <button type="button" className="button button-primary" onClick={() => { setEditingCustomer(null); setError(""); setShowForm(true); }}><Plus size={16} /> Novo cliente</button>
           </div>
         </div>
-        <form className="customer-toolbar" onSubmit={(event) => { event.preventDefault(); applyFilters(); }}>
+      </section>
+      <form className="customer-toolbar panel" onSubmit={(event) => { event.preventDefault(); applyFilters(); }}>
+          <div className="customer-filter-heading"><strong><SlidersHorizontal size={16} /> Filtros de busca</strong><button type="button" className="customer-clear-action" onClick={clearFilters}><X size={14} /> Limpar filtros</button></div>
           <div className="customer-quick-filters">
             <div className="search-field customer-search-control"><Search size={17} /><input aria-label="Buscar cliente" placeholder="Buscar por nome, código ou CNPJ" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} /></div>
+            <select aria-label="Filtrar cidade" value={cityDraft} onChange={(event) => setCityDraft(event.target.value)}><option value="Todas">Todas as cidades</option>{cities.map((item) => <option key={item} value={item}>{item}</option>)}</select>
             <select aria-label="Filtrar status" value={statusDraft} onChange={(event) => setStatusDraft(event.target.value)}><option value="Todos">Todos os status</option><option>Ativo</option><option>Inativo</option><option>Prospect</option></select>
-            <button type="button" className={`button button-outline customer-filter-toggle ${moreFilters ? "customer-filter-toggle-active" : ""}`} aria-expanded={moreFilters} aria-controls="customer-extra-filters" onClick={() => setMoreFilters((open) => !open)}><SlidersHorizontal size={15} /> Filtros{[segmentDraft !== "Todos", cityDraft !== "Todas", groupDraft !== "Todos"].filter(Boolean).length > 0 && <span>{[segmentDraft !== "Todos", cityDraft !== "Todas", groupDraft !== "Todos"].filter(Boolean).length}</span>}</button>
+            <button type="button" className={`button button-outline customer-filter-toggle ${moreFilters ? "customer-filter-toggle-active" : ""}`} aria-expanded={moreFilters} aria-controls="customer-extra-filters" onClick={() => setMoreFilters((open) => !open)}><SlidersHorizontal size={15} /> Mais filtros{[segmentDraft !== "Todos", groupDraft !== "Todos"].filter(Boolean).length > 0 && <span>{[segmentDraft !== "Todos", groupDraft !== "Todos"].filter(Boolean).length}</span>}</button>
             <button type="submit" className="button button-primary">Aplicar</button>
             <button type="button" className="icon-button customer-clear-filters" onClick={clearFilters} aria-label="Limpar filtros" title="Limpar filtros"><X size={17} /></button>
           </div>
+          {(search || status !== "Todos" || city !== "Todas" || segment !== "Todos" || groupFilter !== "Todos") && <div className="customer-filter-chips" aria-label="Filtros aplicados">
+            {search && <button type="button" onClick={() => { setSearch(""); setSearchDraft(""); setSelectedIds([]); }}>Busca: {search}<X size={12} /></button>}
+            {city !== "Todas" && <button type="button" onClick={() => { setCity("Todas"); setCityDraft("Todas"); setSelectedIds([]); }}>Cidade: {city}<X size={12} /></button>}
+            {status !== "Todos" && <button type="button" onClick={() => { setStatus("Todos"); setStatusDraft("Todos"); setSelectedIds([]); }}>Status: {status}<X size={12} /></button>}
+            {segment !== "Todos" && <button type="button" onClick={() => { setSegment("Todos"); setSegmentDraft("Todos"); setSelectedIds([]); }}>Segmento: {segment}<X size={12} /></button>}
+            {groupFilter !== "Todos" && <button type="button" onClick={() => { setGroupFilter("Todos"); setGroupDraft("Todos"); setSelectedIds([]); }}>Rede: {customerGroups.find((group) => group.id === groupFilter)?.name ?? "Selecionada"}<X size={12} /></button>}
+          </div>}
           {moreFilters && <div className="customer-extra-filters" id="customer-extra-filters">
             <label><span>Segmento</span><select value={segmentDraft} onChange={(event) => setSegmentDraft(event.target.value)}><option value="Todos">Todos os segmentos</option>{segments.map((item) => <option key={item}>{item}</option>)}</select></label>
-            <label><span>Cidade</span><select value={cityDraft} onChange={(event) => setCityDraft(event.target.value)}><option value="Todas">Todas as cidades</option>{cities.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
             <label><span>Rede</span><select value={groupDraft} onChange={(event) => setGroupDraft(event.target.value)}><option value="Todos">Todas as redes</option>{customerGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
           </div>}
-        </form>
         {error && !showForm && <div className="form-error customer-page-error" role="alert">{error}</div>}
-      </section>
+      </form>
       <div className="customer-results-toolbar">
         <span>{filtered.length} de {customers.length} cliente(s)</span>
         <div className="customer-selection-actions">
@@ -335,7 +344,7 @@ export default function CustomersPage() {
       <section className="panel customer-directory-table">
         {filtered.length ? <div className="table-wrap customer-table-wrap"><table><thead><tr><th className="customer-select-cell"><input aria-label="Selecionar todos os clientes" type="checkbox" checked={filtered.length > 0 && filtered.every((customer) => selectedIds.includes(customer.id))} onChange={(event) => setSelectedIds(event.target.checked ? filtered.map((customer) => customer.id) : [])} /></th>{heading("code", "Código", (r) => r.code)}{heading("name", "Cliente / Rede", (r) => r.name)}{heading("segment", "Segmento", (r) => r.segment)}{heading("city", "Cidade", (r) => r.city)}{heading("status", "Status", (r) => r.status)}<th>Ações</th></tr></thead><tbody>{sorted.map((customer) => {
           const group = customerGroups.find((item) => item.id === customer.groupId);
-          return <tr key={customer.id}><td className="customer-select-cell"><input aria-label={`Selecionar ${customer.name}`} type="checkbox" checked={selectedIds.includes(customer.id)} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, customer.id] : current.filter((id) => id !== customer.id))} /></td><td><span className="code-chip">{customer.code}</span></td><td><strong className="customer-name">{customer.name}</strong><small className="customer-detail">{group && <span className="customer-group-badge"><Network size={11} /> {group.name}</span>}{customer.document && <span className="customer-document-preview">CNPJ {customer.document}</span>}{!group && !customer.document && (customer.fantasyName || "Sem rede")}</small></td><td>{customer.segment || "—"}</td><td>{customer.city || "—"}</td><td><span className={`status-pill ${customer.status === "Ativo" ? "status-green" : "status-neutral"}`}>{customer.status}</span></td><td><div className="product-row-actions"><button className="table-action" aria-label={`Editar ${customer.name}`} title="Editar cliente" onClick={() => { setEditingCustomer(customer); setError(""); setShowForm(true); }}><Pencil size={15} /></button><button className="table-action product-delete-action" aria-label={`Excluir ${customer.name}`} title="Excluir cliente" onClick={() => { setError(""); setPendingDelete(customer); }}><Trash2 size={15} /></button></div></td></tr>;
+          return <tr key={customer.id}><td className="customer-select-cell"><input aria-label={`Selecionar ${customer.name}`} type="checkbox" checked={selectedIds.includes(customer.id)} onChange={(event) => setSelectedIds((current) => event.target.checked ? [...current, customer.id] : current.filter((id) => id !== customer.id))} /></td><td><span className="code-chip">{customer.code}</span></td><td><strong className="customer-name">{customer.name}</strong><small className="customer-detail">{group && <span className="customer-group-badge"><Network size={11} /> {group.name}</span>}{customer.document && <span className="customer-document-preview">CNPJ {customer.document}</span>}{!group && !customer.document && (customer.fantasyName || "Sem rede")}</small></td><td>{customer.segment || "—"}</td><td>{customer.city || "—"}</td><td><span className={`status-pill ${customer.status === "Ativo" ? "status-green" : "status-neutral"}`}>{customer.status}</span></td><td><div className="product-row-actions"><button className="table-action" aria-label={`Ver ${customer.name}`} title="Visualizar cliente" onClick={() => setCustomerDetails(customer)}><Eye size={15} /></button><button className="table-action" aria-label={`Editar ${customer.name}`} title="Editar cliente" onClick={() => { setEditingCustomer(customer); setError(""); setShowForm(true); }}><Pencil size={15} /></button><button className="table-action product-delete-action" aria-label={`Excluir ${customer.name}`} title="Excluir cliente" onClick={() => { setError(""); setPendingDelete(customer); }}><Trash2 size={15} /></button></div></td></tr>;
         })}</tbody></table></div> : <div className="page-empty"><span className="page-empty-icon"><UsersRound size={23} /></span><strong>{search || segment !== "Todos" || status !== "Todos" || city !== "Todas" || groupFilter !== "Todos" ? "Nenhum cliente encontrado" : "Sua carteira está pronta para começar"}</strong><p>{customers.length ? "Experimente ajustar a busca ou os filtros." : "Cadastre seu primeiro cliente para começar a organizar a carteira."}</p>{!customers.length && <button className="button button-outline" onClick={() => { setEditingCustomer(null); setShowForm(true); }}><Plus size={16} /> Cadastrar cliente</button>}</div>}
       </section>
       {showGroups && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !savingGroup) setShowGroups(false); }}>
@@ -381,6 +390,24 @@ export default function CustomersPage() {
               <div className="customer-group-footer">{editingGroupId && !confirmingGroupDelete && <button type="button" className="button button-outline customer-group-delete" disabled={savingGroup} onClick={() => setConfirmingGroupDelete(true)}><Trash2 size={15} /> Excluir rede</button>}<button type="button" className="button button-outline" disabled={savingGroup} onClick={() => setShowGroups(false)}>Cancelar</button><span className="customer-group-report-hint">Os relatórios serão consolidados usando os pedidos de cada loja.</span><button type="submit" className="button button-primary" disabled={savingGroup}>{savingGroup ? "Salvando..." : editingGroupId ? "Salvar rede" : "Criar rede"}</button></div>
             </form>
           </div>
+        </section>
+      </div>}
+      {customerDetails && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setCustomerDetails(null); }}>
+        <section className="customer-modal customer-details-modal" role="dialog" aria-modal="true" aria-labelledby="customer-details-title">
+          <div className="modal-heading"><div><p className="eyebrow">DETALHES DO CLIENTE</p><h2 id="customer-details-title">{customerDetails.name}</h2><p>Código {customerDetails.code} · {customerDetails.status}</p></div><button type="button" className="icon-button" aria-label="Fechar detalhes" onClick={() => setCustomerDetails(null)}><X size={20} /></button></div>
+          <div className="customer-details-grid">
+            <div><span>CNPJ / CPF</span><strong>{customerDetails.document || "Não informado"}</strong></div>
+            <div><span>Nome fantasia</span><strong>{customerDetails.fantasyName || "Não informado"}</strong></div>
+            <div><span>Loja</span><strong>{customerDetails.store || "Não informada"}</strong></div>
+            <div><span>Segmento</span><strong>{customerDetails.segment || "Não informado"}</strong></div>
+            <div><span>Prazo de pagamento</span><strong>{customerDetails.paymentTerm || "Não informado"}</strong></div>
+            <div><span>Representante</span><strong>{customerDetails.representative || "Não informado"}</strong></div>
+            <div><span>Telefone</span><strong>{customerDetails.phone || "Não informado"}</strong></div>
+            <div><span>E-mail</span><strong>{customerDetails.email || "Não informado"}</strong></div>
+            <div><span>Última compra</span><strong>{customerDetails.lastPurchase || "Não informada"}</strong></div>
+            <div className="customer-detail-wide"><span>Endereço</span><strong>{[customerDetails.address, customerDetails.neighborhood, customerDetails.city, customerDetails.state].filter(Boolean).join(", ") || "Não informado"}</strong></div>
+          </div>
+          <div className="modal-footer"><button type="button" className="button button-outline" onClick={() => setCustomerDetails(null)}>Fechar</button><button type="button" className="button button-primary" onClick={() => { setEditingCustomer(customerDetails); setCustomerDetails(null); setError(""); setShowForm(true); }}><Pencil size={15} /> Editar cliente</button></div>
         </section>
       </div>}
       {showForm && <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (!savingCustomer && event.target === event.currentTarget) setShowForm(false); }}>

@@ -2,7 +2,7 @@
 
 import { useTableSort } from "@/components/sort-heading";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Download, Package, Pencil, Plus, Search, Trash2, Upload, X } from "lucide-react";
 import { SpreadsheetImportModal } from "@/components/spreadsheet-import-modal";
 import { useCrmStore } from "@/lib/store";
@@ -35,6 +35,9 @@ function downloadProducts(products: Product[]) {
 
 export default function ProductsPage() {
   const { products, addProduct, updateProduct, deleteProduct } = useCrmStore();
+  const tableViewport = useRef<HTMLDivElement>(null);
+  const horizontalScrollbar = useRef<HTMLDivElement>(null);
+  const [tableWidth, setTableWidth] = useState("100%");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("Todos");
   const [showForm, setShowForm] = useState(false);
@@ -55,6 +58,20 @@ export default function ProductsPage() {
   const previewQuantity = Number(quantityInput) || 0;
   const previewUnitWeight = Number(unitWeightInput) || 0;
   const previewUnitPrice = Number(unitPriceInput) || 0;
+  const activeProductCount = filtered.filter((product) => product.status === "Ativo").length;
+  const inactiveProductCount = filtered.filter((product) => product.status === "Inativo").length;
+
+  useEffect(() => {
+    const viewport = tableViewport.current;
+    const table = viewport?.querySelector("table");
+    if (!viewport || !table) return;
+    const measure = () => setTableWidth(`${table.scrollWidth}px`);
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewport);
+    observer.observe(table);
+    measure();
+    return () => observer.disconnect();
+  }, [sorted]);
 
   async function downloadTemplate() {
     await downloadXlsxTemplate(
@@ -246,12 +263,17 @@ export default function ProductsPage() {
       <section className="panel module-panel">
         <div className="module-heading">
           <span className="module-title-icon"><Package size={21} /></span>
-          <div className="module-title-copy"><p className="eyebrow">PRODUTOS</p><h1>Cadastro e gestão de produtos</h1></div>
+          <div className="module-title-copy"><p className="eyebrow">CATÁLOGO COMERCIAL</p><h1>Produtos <span className="module-heading-count">{filtered.length}</span></h1><p>Cadastro e gestão de produtos</p></div>
           <div className="module-actions"><button className="button button-outline" onClick={() => { setError(""); setShowImport(true); }}><Upload size={15} /> Importar</button><button className="button button-primary" onClick={openNewProductForm}><Plus size={16} /> Cadastrar produto</button></div>
         </div>
+        <section className="catalog-stats" aria-label="Resumo do catálogo">
+          <article className="catalog-stat"><span>Produtos na consulta</span><strong>{filtered.length.toLocaleString("pt-BR")}</strong><small>{search || status !== "Todos" ? "Resultado dos filtros aplicados" : "Itens no catálogo"}</small></article>
+          <article className="catalog-stat catalog-stat-active"><span>Ativos na consulta</span><strong>{activeProductCount.toLocaleString("pt-BR")}</strong><small>Disponíveis para pedidos</small></article>
+          <article className="catalog-stat catalog-stat-inactive"><span>Inativos na consulta</span><strong>{inactiveProductCount.toLocaleString("pt-BR")}</strong><small>Fora de disponibilidade</small></article>
+        </section>
         {error && !showForm && <div className="import-feedback feedback-warning" role="status">{error}</div>}
         <div className="product-filters"><div className="search-field"><Search size={16} /><input aria-label="Pesquisar produtos" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por descrição ou código..." /></div><select value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Filtrar produtos por status"><option>Todos</option><option>Ativo</option><option>Inativo</option></select><button className="button button-outline" onClick={() => { void exportFiltered(); }}><Download size={14} /> Exportar XLSX</button><span className="results-summary">{filtered.length} produtos</span></div>
-        {filtered.length ? <div className="table-wrap customer-table-wrap product-table-wrap"><table><thead><tr>{heading("description", "Descrição", (r) => r.description)}{heading("unitPrice", "Preço / unidade", (r) => r.unitPrice ?? r.pricePerBox / r.quantityPerBox)}{heading("pricePerBox", "Preço / cx", (r) => r.pricePerBox)}{heading("codeBox", "Cod Cx", (r) => r.codeBox)}{heading("codeHalfBox", "Meia Cx", (r) => r.codeHalfBox)}{heading("measure", "Medida", (r) => r.measure ?? "KG")}{heading("unitWeight", "Peso Unidade", (r) => r.unitWeight ?? r.weightPerBox / r.quantityPerBox)}{heading("weightPerBox", "Peso Caixa", (r) => r.weightPerBox)}{heading("weightType", "Peso", (r) => r.weightType)}{heading("expiration", "Validade", (r) => r.expiration)}{heading("quantityPerBox", "Qtd Cx", (r) => r.quantityPerBox)}{heading("status", "Status", (r) => r.status)}<th>AÇÕES</th></tr></thead><tbody>{sorted.map((product) => { const half = getPackageValues(product, true); const measure = product.measure ?? "KG"; const unitPrice = product.unitPrice ?? product.pricePerBox / product.quantityPerBox; const unitWeight = product.unitWeight ?? product.weightPerBox / product.quantityPerBox; return <tr key={product.id}><td className="table-primary">{product.description}</td><td>R$ {unitPrice.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td><td>R$ {product.pricePerBox.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}<small className="customer-detail">Meia: R$ {half.price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</small></td><td><span className="code-chip">{product.codeBox}</span></td><td><span className="code-chip half-code">{product.codeHalfBox}</span></td><td>{measure}</td><td>{unitWeight.toLocaleString("pt-BR")} {measure}</td><td>{product.weightPerBox.toLocaleString("pt-BR")} {measure}</td><td>{product.weightType ?? "Fixo"}</td><td>{product.expiration || "—"}</td><td>{product.quantityPerBox}</td><td><span className={`status-pill ${product.status === "Ativo" ? "status-green" : "status-neutral"}`}>{product.status}</span></td><td><div className="product-row-actions"><button className="table-action" aria-label={`Editar ${product.description}`} title="Editar produto" onClick={() => openEditProductForm(product)}><Pencil size={15} /></button><button className="table-action product-delete-action" aria-label={`Excluir ${product.description}`} title="Excluir produto" onClick={() => { setError(""); setPendingDelete(product); }}><Trash2 size={15} /></button></div></td></tr>; })}</tbody></table></div> : <div className="page-empty"><span className="page-empty-icon"><Package size={23} /></span><strong>{search ? "Nenhum produto encontrado" : "Cadastre seu primeiro produto"}</strong><p>{search ? "Confira os códigos e tente novamente." : "Registre os códigos de caixa e meia caixa para usar no cadastro e na importação de pedidos."}</p>{!search && <button className="button button-outline" onClick={openNewProductForm}><Plus size={16} /> Cadastrar produto</button>}</div>}
+        {filtered.length ? <><div className="product-table-scroll-top" ref={horizontalScrollbar} role="region" aria-label="Rolagem horizontal superior da tabela de produtos" tabIndex={0} onScroll={(event) => { if (tableViewport.current) tableViewport.current.scrollLeft = event.currentTarget.scrollLeft; }}><div style={{ width: tableWidth, height: 1 }} /></div><div className="table-wrap customer-table-wrap product-table-wrap" ref={tableViewport} onScroll={(event) => { if (horizontalScrollbar.current) horizontalScrollbar.current.scrollLeft = event.currentTarget.scrollLeft; }}><table><thead><tr>{heading("description", "Descrição", (r) => r.description)}{heading("unitPrice", "Preço / unidade", (r) => r.unitPrice ?? r.pricePerBox / r.quantityPerBox)}{heading("pricePerBox", "Preço / cx", (r) => r.pricePerBox)}{heading("codeBox", "Cod Cx", (r) => r.codeBox)}{heading("codeHalfBox", "Meia Cx", (r) => r.codeHalfBox)}{heading("measure", "Medida", (r) => r.measure ?? "KG")}{heading("unitWeight", "Peso Unidade", (r) => r.unitWeight ?? r.weightPerBox / r.quantityPerBox)}{heading("weightPerBox", "Peso Caixa", (r) => r.weightPerBox)}{heading("weightType", "Peso", (r) => r.weightType)}{heading("expiration", "Validade", (r) => r.expiration)}{heading("quantityPerBox", "Qtd Cx", (r) => r.quantityPerBox)}{heading("status", "Status", (r) => r.status)}<th>AÇÕES</th></tr></thead><tbody>{sorted.map((product) => { const half = getPackageValues(product, true); const measure = product.measure ?? "KG"; const unitPrice = product.unitPrice ?? product.pricePerBox / product.quantityPerBox; const unitWeight = product.unitWeight ?? product.weightPerBox / product.quantityPerBox; return <tr key={product.id}><td className="table-primary">{product.description}</td><td>R$ {unitPrice.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td><td>R$ {product.pricePerBox.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}<small className="customer-detail">Meia: R$ {half.price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</small></td><td><span className="code-chip">{product.codeBox}</span></td><td><span className="code-chip half-code">{product.codeHalfBox}</span></td><td>{measure}</td><td>{unitWeight.toLocaleString("pt-BR")} {measure}</td><td>{product.weightPerBox.toLocaleString("pt-BR")} {measure}</td><td>{product.weightType ?? "Fixo"}</td><td>{product.expiration || "—"}</td><td>{product.quantityPerBox}</td><td><span className={`status-pill ${product.status === "Ativo" ? "status-green" : "status-neutral"}`}>{product.status}</span></td><td><div className="product-row-actions"><button className="table-action" aria-label={`Editar ${product.description}`} title="Editar produto" onClick={() => openEditProductForm(product)}><Pencil size={15} /></button><button className="table-action product-delete-action" aria-label={`Excluir ${product.description}`} title="Excluir produto" onClick={() => { setError(""); setPendingDelete(product); }}><Trash2 size={15} /></button></div></td></tr>; })}</tbody></table></div></> : <div className="page-empty"><span className="page-empty-icon"><Package size={23} /></span><strong>{search ? "Nenhum produto encontrado" : "Cadastre seu primeiro produto"}</strong><p>{search ? "Confira os códigos e tente novamente." : "Registre os códigos de caixa e meia caixa para usar no cadastro e na importação de pedidos."}</p>{!search && <button className="button button-outline" onClick={openNewProductForm}><Plus size={16} /> Cadastrar produto</button>}</div>}
       </section>
       {showForm && (
         <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false); }}>

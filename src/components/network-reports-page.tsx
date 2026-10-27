@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, Settings2 } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import { useMemo, useState } from "react";
 import { NetworkProductsReport } from "@/components/network-products-report";
 import { StoreProductsReport } from "@/components/store-products-report";
 import { StoreGrowthReport } from "@/components/store-growth-report";
 import { NetworkCommissionReport } from "@/components/network-commission-report";
+import { NetworkRemittancesReport } from "@/components/network-remittances-report";
 import { usePeriodRecords } from "@/lib/use-period-records";
+import { useOrderRemittances } from "@/lib/order-remittances";
 import type { Order } from "@/lib/types";
 import { useCrmStore } from "@/lib/store";
 import { saoPauloToday } from "@/lib/mart-minas-analytics";
@@ -24,7 +26,9 @@ export function NetworkReportsPage({ settings, defaultTitle }: { settings: { gro
   const [end, setEnd] = useState(today);
   const [scope, setScope] = useState("ours");
   const [reportView, setReportView] = useState("commission");
+  const [remittanceId, setRemittanceId] = useState("all");
   const group = customerGroups.find((entry) => entry.id === groupId);
+  const remittanceData = useOrderRemittances(groupId, !!groupId);
   const sellers = [...new Set(Object.values(group?.externalStoreSellers ?? {}).map((name) => name.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   const activeScope = scope.startsWith("seller:") && !sellers.includes(scope.slice(7)) ? "ours" : scope;
   const scopeOptions = [{ value: "ours", label: "WRRJ" }, { value: "all", label: "Mesclado" }, { value: "external", label: "Sul de Minas" }];
@@ -33,7 +37,7 @@ export function NetworkReportsPage({ settings, defaultTitle }: { settings: { gro
   const validPeriod = !!start && !!end && start >= "2026-10-01" && start <= end && end <= today;
   const scopeLabel = activeScope === "ours" ? "WRRJ" : activeScope === "external" ? "Sul de Minas" : "Mesclado";
   const orderData = usePeriodRecords<Order>("orders", reportView === "commission" || reportView === "catalog" ? start : "2026-10-01", end, validPeriod && !!group);
-  const orders = orderData.rows;
+  const orders = useMemo(() => remittanceId === "all" ? orderData.rows : orderData.rows.filter(order => remittanceId === "unassigned" ? !order.remittanceId : order.remittanceId === remittanceId), [orderData.rows, remittanceId]);
   const report = useMemo(() => {
     if (!group || !validPeriod || orderData.loading || orderData.error) return null;
     const totals = new Map<string, { revenue: number; orders: number }>();
@@ -59,7 +63,13 @@ export function NetworkReportsPage({ settings, defaultTitle }: { settings: { gro
     const lastDay = new Date(Date.UTC(year, number, 0)).toISOString().slice(0, 10);
     setStart(`${month}-01`); setEnd(lastDay < today ? lastDay : today);
   }
-  const sidebar = <><nav className="mart-report-options" aria-label="Relatórios"><button type="button" aria-pressed={reportView === "commission"} onClick={() => setReportView("commission")}>Comissões</button><button type="button" aria-pressed={reportView === "growth"} onClick={() => setReportView("growth")}>Crescimento</button><button type="button" aria-pressed={reportView === "products"} onClick={() => { setReportView("products"); setStart(`${periodMonth}-01`); }}>Produtos por loja</button><button type="button" aria-pressed={reportView === "catalog"} onClick={() => setReportView("catalog")}>Produtos</button></nav><section className="mart-workspace-period" aria-label="Período e responsável">
+  const sidebar = <><nav className="mart-report-options" aria-label="Relatórios"><button type="button" aria-pressed={reportView === "commission"} onClick={() => setReportView("commission")}>Comissões</button><button type="button" aria-pressed={reportView === "growth"} onClick={() => setReportView("growth")}>Crescimento</button><button type="button" aria-pressed={reportView === "products"} onClick={() => { setReportView("products"); setStart(`${periodMonth}-01`); }}>Produtos por loja</button><button type="button" aria-pressed={reportView === "catalog"} onClick={() => setReportView("catalog")}>Produtos</button><button type="button" aria-pressed={reportView === "remittances"} onClick={() => setReportView("remittances")}>Remessas</button></nav><section className="mart-remittance-filter" aria-label="Filtrar relatórios por remessa">
+        <label htmlFor="network-remittance-filter">Remessa</label><select id="network-remittance-filter" value={remittanceId} onChange={event => setRemittanceId(event.target.value)} disabled={remittanceData.loading || !!remittanceData.error}>
+          <option value="all">Todas as remessas</option><option value="unassigned">Sem remessa</option>
+          {remittanceData.remittances.map(remittance => <option key={remittance.id} value={remittance.id}>{remittance.name}</option>)}
+        </select>
+        {remittanceData.error && <small className="mart-remittance-filter-error" role="alert">{remittanceData.error}</small>}
+      </section><section className="mart-workspace-period" aria-label="Período e responsável">
         <div className="mart-filter-section-title">Período</div>
         {reportView === "products" ? <label>Mês<input aria-label="Mês de acompanhamento" type="month" min="2026-10" max={today.slice(0, 7)} value={periodMonth} onChange={event => selectMonth(event.target.value)} /></label> :         <label>De<input aria-label="Data inicial" type="date" min="2026-10-01" max={today} value={start} onChange={(event) => setStart(event.target.value)} /></label>}
         <label>Até<input aria-label="Data final" type="date" min={reportView === "products" ? `${periodMonth}-01` : start || "2026-10-01"} max={reportView === "products" ? [today, new Date(Date.UTC(Number(periodMonth.slice(0, 4)), Number(periodMonth.slice(5, 7)), 0)).toISOString().slice(0, 10)].sort()[0] : today} value={end} onChange={(event) => setEnd(event.target.value)} /></label>
@@ -68,7 +78,7 @@ export function NetworkReportsPage({ settings, defaultTitle }: { settings: { gro
       </section></>;
 
   return <div className="page-content mart-report mart-commission-page mart-clean">
-    <header className="mart-report-heading"><div><p className="eyebrow">RELATÓRIOS</p><h1>{reportName || defaultTitle}</h1></div><Link className="mart-config-link" href="/configuracoes" aria-label="Configurar redes e comissões"><Settings2 size={17} /> Configurações</Link></header>
+    <header className="mart-report-heading"><div><p className="eyebrow">RELATÓRIOS</p><h1>{reportName || defaultTitle}</h1></div></header>
     {loading ? <div className="panel page-empty" role="status">Carregando configuração...</div> : error ? <p className="form-error" role="alert">{error}</p> : !group ? <div className="panel page-empty"><strong>Nenhuma rede disponível</strong><p>Selecione a rede do Mart Minas em Redes e comissões.</p><Link className="button button-outline" href="/configuracoes">Abrir configurações</Link></div> : <>
       {orderData.loading && <p role="status">Carregando dados do período...</p>}
       {orderData.error && <p role="alert">{orderData.error}</p>}
@@ -76,6 +86,7 @@ export function NetworkReportsPage({ settings, defaultTitle }: { settings: { gro
       {report && reportView === "commission" && <NetworkCommissionReport key={group.id} group={group} report={report} scopeLabel={scopeLabel} status="normal" sidebar={sidebar} />}
       {report && reportView === "growth" && <StoreGrowthReport customers={customers} group={group} orders={orders} start={start} end={end} scope={activeScope} sidebar={sidebar} />}      {report && reportView === "products" && <StoreProductsReport customers={customers} group={group} products={products} orders={orders} end={end} scope={activeScope} sidebar={sidebar} />}
       {report && reportView === "catalog" && <NetworkProductsReport customers={customers} group={group} products={products} orders={orders} start={start} end={end} scope={activeScope} sidebar={sidebar} />}
+      {validPeriod && reportView === "remittances" && <NetworkRemittancesReport group={group} customers={customers} start={start} end={end} scope={activeScope} sidebar={sidebar} remittanceFilter={remittanceId} remittances={remittanceData.remittances} remittancesLoading={remittanceData.loading} remittancesError={remittanceData.error} />}
     </>}
   </div>;
 }

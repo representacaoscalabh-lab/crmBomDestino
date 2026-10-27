@@ -57,13 +57,12 @@ export function StoreProductsReport({ customers, group, products, orders, end, s
     finally { setExporting(false); }
   }
   return <div className="mart-commission-workspace">
-    <aside className="mart-workspace-sidebar"><div className="panel mart-workspace-filter-panel"><h2>Filtros</h2>{sidebar}<div className="commission-filters">
+    <aside className="mart-workspace-sidebar"><div className="panel mart-workspace-filter-panel"><h2>Filtros de produtos por loja</h2>{sidebar}<div className="commission-filters report-specific-filters">
       <label>Buscar<input value={search} onChange={event => setSearch(event.target.value)} placeholder="Loja, produto, código..." /></label>
-      <details className="mart-filter-more"><summary>Mais filtros{[activeCustomer, activeProduct, state, activity !== "history" ? activity : ""].filter(Boolean).length > 0 && <span>{[activeCustomer, activeProduct, state, activity !== "history" ? activity : ""].filter(Boolean).length}</span>}</summary><div>      <label>Loja<select value={activeCustomer} onChange={event => setCustomerId(event.target.value)}><option value="">Todas as lojas</option>{stores.map(store => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
+      <label>Loja<select value={activeCustomer} onChange={event => setCustomerId(event.target.value)}><option value="">Todas as lojas</option>{stores.map(store => <option key={store.id} value={store.id}>{store.name}</option>)}</select></label>
       <label>Produto<select value={activeProduct} onChange={event => setProductId(event.target.value)}><option value="">Todos os produtos</option>{catalog.map(product => <option key={product.id} value={product.id}>{product.name}</option>)}</select></label>
       <label>Situação<select value={state} onChange={event => setState(event.target.value)}><option value="">Todas as situações</option>{[...PRODUCT_STATES, "Sem base comparável"].map(value => <option key={value}>{value}</option>)}</select></label>
       <label>Exibir<select value={activity} onChange={event => setActivity(event.target.value)}><option value="history">Com movimento recente</option><option value="current">Compraram no mês</option><option value="all">Todos, inclusive sem compra</option></select></label>
-</div></details>
       <button type="button" className="button button-outline" onClick={() => { setCustomerId(""); setProductId(""); setState(""); setActivity("history"); setSearch(""); }}>Limpar filtros</button>
     </div></div></aside>
     <section className="panel mart-report-section commission-report products-store-report" aria-label="Produtos por loja">

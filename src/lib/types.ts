@@ -85,6 +85,7 @@ export type Order = {
   /** Number of source orders represented by a dashboard daily aggregate. */
   recordCount?: number;
   id: string;
+  remittanceId?: string;
   preOrder: string;
   issueDate: string;
   invoice: string;
@@ -102,6 +103,7 @@ export type Order = {
 
 export type Bonification = {
   id: string;
+  remittanceId?: string;
   bonusNumber: string;
   issueDate: string;
   customerId: string;

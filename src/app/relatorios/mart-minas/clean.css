@@ -1,15 +1,13 @@
 /* Clean report shell; table dimensions and scrolling remain shared. */
 .mart-clean { gap: 18px; padding: 22px; }
 .mart-clean > .mart-report-heading { padding: 0 0 4px; border: 0; background: transparent; border-radius: 0; }
-.mart-clean .mart-report-heading .eyebrow { font-size: 11px; letter-spacing: 1px; color: var(--muted); }
+.mart-clean .mart-report-heading .eyebrow { font-size: 12px; letter-spacing: 1px; color: var(--muted); }
 .mart-clean .mart-report-heading h1 { margin-top: 6px; font-size: 27px; letter-spacing: -.6px; }
-.mart-config-link { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); text-decoration: none; }
-.mart-config-link:hover { color: var(--brand); }
 .mart-clean .mart-commission-workspace { grid-template-columns: 278px minmax(0, 1fr); gap: 18px; }
 .mart-clean .mart-workspace-sidebar .panel { padding: 18px; border-radius: 12px; box-shadow: none; }
-.mart-clean .mart-workspace-filter-panel > h2 { display: none; }
+.mart-clean .mart-workspace-filter-panel > h2 { display: block; margin: 0 0 14px; padding: 0 0 10px; border-bottom: 1px solid var(--line); color: var(--brand); font-size: 13px; font-weight: 700; }
 .mart-clean .mart-report-options { margin: 0 0 20px; padding-bottom: 18px; gap: 5px; }
-.mart-clean .mart-report-options::before { content: "RELATÓRIOS"; display: block; color: var(--muted); font-size: 10px; letter-spacing: 1px; font-weight: 600; padding: 0 10px 8px; }
+.mart-clean .mart-report-options::before { content: "RELATÓRIOS"; display: block; color: var(--muted); font-size: 12px; letter-spacing: 1px; font-weight: 600; padding: 0 10px 8px; }
 .mart-clean .mart-report-options button { font-size: 14px; border-radius: 8px; padding: 12px; }
 .mart-clean .mart-report-options button[aria-pressed="true"] { border-color: transparent; background: var(--brand-soft); }
 .mart-filter-section-title { font-size: 12px; color: var(--muted); font-weight: 600; }
@@ -20,14 +18,7 @@
 .mart-clean .mart-responsible-field > span { font-size: 13px; }
 .mart-clean .mart-scope-bar > button { white-space: normal; font-size: 12px; line-height: 1.25; }
 .mart-clean .mart-workspace-sidebar .commission-filters { margin-top: 18px; padding-top: 18px; gap: 12px; }
-.mart-filter-more { border-top: 1px solid var(--line); padding-top: 12px; }
-.mart-filter-more > summary { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 0; color: var(--muted); font-size: 13px; cursor: pointer; list-style: none; }
-.mart-filter-more > summary::after { content: "+"; font-size: 17px; margin-left: auto; }
-.mart-filter-more[open] > summary::after { content: "−"; }
-.mart-filter-more > summary::-webkit-details-marker { display: none; }
-.mart-filter-more > summary > span { background: var(--brand-soft); color: var(--brand); border-radius: 20px; padding: 2px 7px; font-size: 12px; }
-.mart-filter-more > div { display: grid; gap: 12px; margin-top: 12px; }
-.mart-filter-more label { display: grid; gap: 7px; font-size: 13px; min-width: 0; }
+.mart-clean .mart-workspace-sidebar .commission-filters.report-specific-filters { margin-top: 14px; padding: 14px 12px 12px; border: 1px solid color-mix(in srgb, var(--brand) 24%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--brand) 3%, var(--surface)); }
 .mart-clean .commission-filters > .button { min-height: 36px; font-size: 12px; }
 .mart-clean .mart-commission-workspace > .commission-report { box-shadow: none; border-radius: 12px; }
 .mart-clean .mart-section-heading { padding: 18px 20px; }
@@ -39,24 +30,31 @@
 .mart-clean .commission-overview-card > strong { font-size: clamp(22px, 1.8vw, 28px); font-weight: 650; letter-spacing: -.5px; }
 .mart-clean .commission-card-label { font-size: 13px; font-weight: 500; }
 .mart-clean .commission-card-meta { font-size: 12px; }
-.mart-clean .commission-overview-card > small { padding-top: 0; border: 0; font-size: 11px; line-height: 1.5; }
+.mart-clean .commission-overview-card > small { padding-top: 0; border: 0; font-size: 12px; line-height: 1.5; }
 .mart-clean .commission-table-intro { padding: 16px 20px; }
 .mart-clean .commission-table-intro h3 { font-size: 15px; }
 .mart-clean .commission-table-intro span { font-size: 12px; }
 .mart-clean .growth-legend { gap: 10px; }
 .mart-clean .products-method { padding: 13px 20px; font-size: 13px; }
 .mart-clean .products-method summary { font-weight: 400; color: var(--muted); }
-.mart-comparison-settings { border-bottom: 1px solid var(--line); }
-.mart-comparison-settings > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; list-style: none; cursor: pointer; font-size: 13px; color: var(--muted); }
-.mart-comparison-settings > summary::-webkit-details-marker { display: none; }
-.mart-comparison-settings strong { color: var(--ink); font-weight: 500; margin-left: 6px; }
-.mart-comparison-settings > summary > span:last-child { white-space: nowrap; color: var(--brand); font-size: 12px; }
-.mart-comparison-settings .growth-comparison-controls { border: 0; padding-top: 0; }
+.mart-comparison-settings { border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--brand) 3%, var(--surface)); }
+.mart-comparison-settings .growth-comparison-controls { border: 0; padding-top: 14px; }
+.mart-comparison-summary { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; }
+.mart-clean .mart-report-table th, .mart-clean .mart-report-table td { border-right: 1px solid color-mix(in srgb, var(--ink) 12%, transparent); }
+.mart-clean .mart-report-table th:last-child, .mart-clean .mart-report-table td:last-child { border-right: 0; }
+.mart-clean .mart-report-table th { padding-top: 14px; padding-bottom: 14px; background: color-mix(in srgb, var(--ink) 5%, var(--surface)); font-size: 14px; font-weight: 700; color: var(--ink); }
+.mart-clean .mart-report-table td { font-size: 15px; font-weight: 500; color: var(--ink); }
+.mart-clean .mart-report-table tbody tr:nth-child(even) { background: color-mix(in srgb, var(--ink) 2%, var(--surface)); }
+.mart-clean .mart-report-table tbody tr:hover { background: color-mix(in srgb, var(--brand) 6%, var(--surface)); }
+.mart-clean .mart-report-table tfoot { background: color-mix(in srgb, var(--brand) 5%, var(--surface)); font-weight: 700; }
 .mart-clean .growth-method { border: 0; background: transparent; padding: 12px 0 0; font-size: 13px; }
 .mart-clean .store-products-dialog-summary { padding: 14px 20px; }
 .mart-clean .store-products-dialog-note { font-size: 12px; }
+.mart-clean .mart-report-options button small { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.mart-clean .commission-overview-card > small, .mart-clean .mart-report-table td small { color: var(--muted); }
+.mart-clean .mart-report-table td small { font-size: 13px; line-height: 1.45; }
 @media (max-width: 1200px) { .mart-clean .mart-commission-workspace { grid-template-columns: 250px minmax(0, 1fr); gap: 14px; } .mart-clean .mart-workspace-sidebar .panel { padding: 14px; } }
-@media (max-width: 760px) { .mart-clean { padding: 16px; } .mart-clean .mart-commission-workspace { grid-template-columns: minmax(0, 1fr); } .mart-clean .mart-report-options { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mart-clean .mart-report-options::before { grid-column: 1 / -1; } .mart-clean .mart-section-heading { padding: 16px; } .mart-clean .mart-comparison-settings > summary { align-items: flex-start; flex-direction: column; } .mart-clean .mart-report-heading h1 { font-size: 23px; } }
+@media (max-width: 760px) { .mart-clean { padding: 16px; } .mart-clean .mart-commission-workspace { grid-template-columns: minmax(0, 1fr); } .mart-clean .mart-report-options { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mart-clean .mart-report-options::before { grid-column: 1 / -1; } .mart-clean .mart-section-heading { padding: 16px; } .mart-clean .mart-report-heading h1 { font-size: 23px; } }
 
 .mart-clean .mart-invalid-period { display: grid; place-items: center; min-height: 510px; text-align: center; padding: 24px; color: var(--muted); }
 .mart-clean .mart-invalid-period h2 { padding: 0; font-size: 20px; margin: 16px 0 8px; color: var(--ink); }

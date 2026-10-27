@@ -110,6 +110,26 @@ service cloud.firestore {
       allow read, create, update, delete: if approved();
     }
 
+    match /order_remittances/{remittanceId} {
+      allow read, create, update: if approved();
+      allow delete: if false;
+    }
+
+    match /order_remittance_events/{eventId} {
+      allow read: if approved();
+      allow create: if approved()
+        && request.resource.data.keys().hasOnly(['groupId', 'remittanceId', 'remittanceName', 'type', 'details', 'actorId', 'actorName', 'createdAt'])
+        && request.resource.data.groupId is string
+        && request.resource.data.remittanceId is string
+        && request.resource.data.remittanceName is string
+        && request.resource.data.type in ['created', 'import_started', 'import_completed', 'import_failed', 'records_assigned', 'renamed']
+        && request.resource.data.details is string
+        && request.resource.data.details.size() <= 1000
+        && request.resource.data.actorId == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
     match /goals/{goalId} {
       allow read, create, update, delete: if approved();
     }

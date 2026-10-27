@@ -175,3 +175,11 @@
 
 .store-products-dialog-table { overflow-x: hidden; overflow-y: auto; }
 .store-products-dialog-heading, .store-products-dialog-summary, .store-products-dialog-note, .store-products-dialog-footer { flex-shrink: 0; }
+.mart-remittance-filter { display: grid; gap: 7px; padding: 15px 0 0; margin-top: 15px; border-top: 1px solid var(--line); }
+.mart-remittance-filter label { color: var(--ink); font-size: 13px; font-weight: 600; }
+.mart-remittance-filter select { width: 100%; min-width: 0; min-height: 42px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; }
+.mart-remittance-filter select:focus-visible { outline: 2px solid color-mix(in srgb, var(--brand) 40%, transparent); outline-offset: 2px; }
+.mart-remittance-filter select:disabled { opacity: .7; cursor: wait; }
+.mart-remittance-filter-error { color: #a13e49; font-size: 11px; line-height: 1.5; }
+.dark-theme .mart-remittance-filter-error { color: #ec9aa2; }
+@media (max-width: 760px) { .mart-remittance-filter { grid-column: 1 / -1; } }

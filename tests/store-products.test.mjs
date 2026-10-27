@@ -181,19 +181,20 @@ test('dashboard de comissoes mostra somente Mart Minas e separa WRRJ e Sul', () 
   const dashboard = load('lib/dashboard-commission.ts', id => id === '@/lib/dashboard-scope' ? scope : commission);
   const { DashboardCommission } = load('components/dashboard-commission.tsx', id => id === '@/lib/dashboard-commission' ? dashboard : id === '@/lib/mart-minas-settings' ? { useMartMinasSettings: () => ({ groupId: group.id, loading: false }) } : id.endsWith('.css') ? {} : require(id));
   for (const [orders, groups, expected] of [
-    [[{ customerId: 'a', status: 'normal', totalValue: 100 }], [{ ...group, commissionPercent: 4 }], 'WRRJ + Sul de Minas no per\u00edodo selecionado.'],
-    [[{ customerId: 'a', status: 'normal', totalValue: 100 }], [group], 'Percentual de comiss\u00e3o n\u00e3o configurado'],
+    [[{ customerId: 'a', status: 'normal', totalValue: 100, totalWeight: 10 }], [{ ...group, commissionPercent: 4 }], '1 loja realizou compras'],
+    [[{ customerId: 'a', status: 'normal', totalValue: 100, totalWeight: 10 }], [group], 'Configure o percentual para visualizar a comissão'],
     [[], [{ ...group, commissionPercent: 4 }], 'Nenhum pedido no per\u00edodo'],
   ]) {
     const html = renderToStaticMarkup(React.createElement(DashboardCommission, { customers, groups, orders }));
     assert.ok(html.includes(expected));
     assert.match(html, /Comiss\u00e3o WRRJ/);
     assert.match(html, /Comiss\u00e3o Sul de Minas/);
+    assert.match(html, /Peso vendido/);
     assert.doesNotMatch(html, /<table|<details|NaN|Infinity|undefined/);
   }
 });
 
-test('dashboard prioriza indicadores e recolhe analises sem exibir metas ou status ficticios', () => {
+test('dashboard apresenta visao comercial renovada com faturamento, analises e sem metas ficticias', () => {
   const scope = load('lib/dashboard-scope.ts');
   const date = new Date();
   const issueDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
@@ -201,11 +202,33 @@ test('dashboard prioriza indicadores e recolhe analises sem exibir metas ou stat
   const { default: HomePage } = load('app/page.tsx', id => id === '@/lib/use-dashboard-records' ? { useDashboardRecords: resource => ({ rows: source[resource], loading: false }) } : id === '@/lib/store' ? { useCrmStore: () => source } : id === '@/lib/dashboard-scope' ? scope : id === '@/components/dashboard-commission' ? { DashboardCommission: () => React.createElement('section', null, 'Comissoes') } : id.endsWith('.css') ? {} : require(id));
   const html = renderToStaticMarkup(React.createElement(HomePage));
   assert.match(html, /Valor dos pedidos/);
+  assert.doesNotMatch(html, /Comparação de faturamento|Comparação de peso/);
+  assert.match(html, /Novo período|vs\. período anterior/);
+  assert.match(html, /Faturamento por mês/);
+  assert.match(html, /dashboard-revenue-tooltip/);
+  assert.match(html, /Faturamento <b>/);
+  assert.match(html, /Peso <b>20 kg<\/b>/);
+  assert.match(html, /Relatório Mart Minas/);
+  assert.match(html, /O que está por trás dos resultados/);
   assert.match(html, /Produtos mais vendidos/);
-  assert.match(html, /Mais análises/);
-  assert.match(html, /Personalizar/);
+  assert.doesNotMatch(html, /Clientes com compra por mês|Peso vendido no ano|Bonificações no período|Valor médio por pedido/);
+  assert.match(html, /Período de análise/);
+  assert.match(html, /Mês atual/);
+  assert.match(html, /Mês anterior/);
+  assert.match(html, /Ano atual/);
+  assert.match(html, /Aplicar período/);
   assert.doesNotMatch(html, /Dados do Firestore|0 metas ativas|Nenhuma meta ativa|Colunas|NaN|Infinity|undefined/);
-  assert.match(html, /<details class="panel dash-more-analysis">/);
+  assert.match(html, /class="dashboard-insight-grid"/);
+});
+
+test('donut da dashboard compacta totais longos sem perder o valor exato acessível', () => {
+  const scope = load('lib/dashboard-scope.ts');
+  const date = new Date();
+  const issueDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+  const source = { customers, customerGroups: [group], products, orders: [{ ...order(issueDate, 10), id: 'dashboard-large', preOrder: '1', totalWeight: 187625.7, totalValue: 100, customerName: 'Loja A' }] };
+  const { default: HomePage } = load('app/page.tsx', id => id === '@/lib/use-dashboard-records' ? { useDashboardRecords: resource => ({ rows: source[resource], loading: false }) } : id === '@/lib/store' ? { useCrmStore: () => source } : id === '@/lib/dashboard-scope' ? scope : id === '@/components/dashboard-commission' ? { DashboardCommission: () => React.createElement('section', null, 'Comissoes') } : id.endsWith('.css') ? {} : require(id));
+  const html = renderToStaticMarkup(React.createElement(HomePage));
+  assert.match(html, /title="187\.625,7 kg">187,6\u00a0mil<\/strong>/);
 });
 
 test('resumo de comissao usa total completo da rede mesmo quando a tabela mostra somente Sul', () => {
@@ -216,7 +239,9 @@ test('resumo de comissao usa total completo da rede mesmo quando a tabela mostra
   const html = renderToStaticMarkup(React.createElement(NetworkCommissionReport, { group: { ...group, commissionPercent: 4, sellerCommissionPercent: 1 }, report: { stores: [allStores[1]], allStores, currentPeriod: { start: '2026-10-01', end: '2026-10-20' } }, scopeLabel: 'Sul de Minas', status: 'normal', sidebar: React.createElement('span', null, 'Filtros') }));
   const total = html.match(/commission-overview-total[\s\S]*?<strong>(.*?)<\/strong>/)?.[1];
   assert.ok(total?.includes('60,00'));
-  assert.match(html, /Mais filtros/);
+  assert.match(html, /Cidade/);
+  assert.match(html, /Movimentação/);
+  assert.doesNotMatch(html, /Mais filtros/);
   assert.match(html, /Exportar XLS/);
   assert.doesNotMatch(html, /Uma comissão por loja|NaN|Infinity|undefined/);
 });

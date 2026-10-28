@@ -4,9 +4,9 @@ import { useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { collection, getDocs, limit, orderBy, query, startAfter, where, type QueryDocumentSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { assignRecordsToOrderRemittance, createOrderRemittance, renameOrderRemittance, useOrderRemittances, type OrderRemittance, type RemittanceNetwork, type RemittanceRecordRef } from "@/lib/order-remittances";
+import { assignRecordsToOrderRemittance, createOrderRemittance, deleteOrderRemittance, renameOrderRemittance, useOrderRemittances, type OrderRemittance, type RemittanceNetwork, type RemittanceRecordRef } from "@/lib/order-remittances";
 import type { Bonification, Customer, Order } from "@/lib/types";
-import { CalendarClock, FileText, History, Link2, LoaderCircle, Pencil, Plus, Search, X } from "lucide-react";
+import { CalendarClock, FileText, History, Link2, LoaderCircle, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { normalizeOrder } from "@/lib/order-status";
 
 type NetworkOption = { groupId: string; network: RemittanceNetwork; label: string };
@@ -119,6 +119,19 @@ export function OrderRemittancesManager({ networks, customers, onClose }: Props)
     } finally { setBusy(false); }
   }
 
+  async function removeRemittance(remittance: OrderRemittance) {
+    if (busy || crmUser?.role !== "admin") return;
+    if (!window.confirm(`Excluir a remessa "${remittance.name}" e TODOS os pedidos e bonificações associados? Esta ação não pode ser desfeita.`)) return;
+    setBusy(true);
+    setError("");
+    try {
+      await deleteOrderRemittance(remittance, actor);
+      setRenameId("");
+    } catch (cause) {
+      setError(`${cause instanceof Error ? cause.message : "Não foi possível excluir a remessa."} Consulte o histórico antes de tentar novamente; lotes já excluídos não são restaurados.`);
+    } finally { setBusy(false); }
+  }
+
   async function saveName(remittance: OrderRemittance) {
     if (busy) return;
     setBusy(true);
@@ -164,6 +177,8 @@ export function OrderRemittancesManager({ networks, customers, onClose }: Props)
     import_failed: "Falha na importação",
     records_assigned: "Registros vinculados",
     renamed: "Remessa renomeada",
+    records_deleted: "Registros excluídos",
+    deleted: "Remessa excluída",
   };
 
   return <div className="modal-backdrop order-modal-backdrop remittance-manager-backdrop" role="presentation" onMouseDown={event => { if (!busy && event.target === event.currentTarget) onClose(); }}>
@@ -195,11 +210,12 @@ export function OrderRemittancesManager({ networks, customers, onClose }: Props)
               <div className="remittance-card-copy">
                 {renameId === remittance.id
                   ? <form className="remittance-rename-form" onSubmit={event => { event.preventDefault(); void saveName(remittance); }}><input aria-label="Nome da remessa" maxLength={100} autoFocus value={renameValue} onChange={event => setRenameValue(event.target.value)} /><button type="submit" className="button button-primary button-small" disabled={busy || !renameValue.trim()}>Salvar</button><button type="button" className="button button-outline button-small" disabled={busy} onClick={() => setRenameId("")}>Cancelar</button></form>
-                  : <><strong>{remittance.name}</strong><span>{remittance.source === "manual" ? "Criada manualmente" : remittance.sourceFile || "Importada de PDF"} · {formatDateTime(remittance.createdAt)}</span><small>{remittance.status === "processing" ? "Importação em andamento" : remittance.status === "failed" ? "Importação com falha — consulte o histórico" : remittance.network === "mart_minas" ? "Mart Minas" : "OESA"}</small></>}
+                  : <><strong>{remittance.name}</strong><span><b>{remittance.source === "manual" ? "Criada manualmente" : "Importada de PDF"}</b>{remittance.sourceFile ? ` · ${remittance.sourceFile}` : ""} · {formatDateTime(remittance.createdAt)}</span><small>{remittance.status === "deleting" ? "Exclusão em andamento — use Excluir para retomar" : remittance.status === "processing" ? "Importação em andamento" : remittance.status === "failed" ? "Importação com falha — consulte o histórico" : remittance.network === "mart_minas" ? "Mart Minas" : "OESA"}</small></>}
               </div>
               <div className="remittance-card-actions">
-                <button type="button" className="button button-outline button-small" disabled={busy || remittance.status === "processing"} onClick={() => { setAssignmentTarget(remittance); setSelectedRecords([]); setSearch(""); setAppliedSearch(""); setError(""); void loadFirstRecords(""); }}><Link2 size={14} /> Vincular registros</button>
-                {renameId !== remittance.id && <button type="button" className="icon-button" aria-label={`Renomear ${remittance.name}`} title="Renomear remessa" disabled={busy} onClick={() => { setRenameId(remittance.id); setRenameValue(remittance.name); }}><Pencil size={15} /></button>}
+                {crmUser?.role === "admin" && <button type="button" className="button button-outline button-small" disabled={busy || remittance.status === "processing"} onClick={() => void removeRemittance(remittance)}><Trash2 size={14} /> Excluir remessa</button>}
+                <button type="button" className="button button-outline button-small" disabled={busy || remittance.status === "processing" || remittance.status === "deleting"} onClick={() => { setAssignmentTarget(remittance); setSelectedRecords([]); setSearch(""); setAppliedSearch(""); setError(""); void loadFirstRecords(""); }}><Link2 size={14} /> Vincular registros</button>
+                {renameId !== remittance.id && <button type="button" className="icon-button" aria-label={`Renomear ${remittance.name}`} title="Renomear remessa" disabled={busy || remittance.status === "deleting"} onClick={() => { setRenameId(remittance.id); setRenameValue(remittance.name); }}><Pencil size={15} /></button>}
               </div>
             </article>)}
             {!remittanceData.remittances.length && <div className="remittance-empty"><FileText size={22} /><strong>Nenhuma remessa nesta rede</strong><span>Crie uma remessa manual ou importe um PDF de pedidos.</span></div>}

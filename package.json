@@ -17,7 +17,7 @@
     "firebase": "^13.0.0",
     "firebase-admin": "^14.5.0",
     "lucide-react": "^0.468.0",
-    "next": "^16.4.0",
+    "next": "^16.4.3",
     "pdfjs-dist": "^4.10.38",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -29,7 +29,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "eslint": "^9.17.0",
-    "eslint-config-next": "^16.4.0",
+    "eslint-config-next": "^16.4.3",
     "typescript": "^5.7.2"
   },
   "overrides": {

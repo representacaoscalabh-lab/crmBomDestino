@@ -11,7 +11,7 @@ new Function('exports', code)(exports);
 const { readRecordResponse } = exports;
 
 test('API ausente ou resposta vazia permite consulta pelo Firebase', async () => {
-  for (const [body, status] of [['', 200], ['', 204], ['<html>Site</html>', 200], ['', 404], ['', 405], ['{"code":"server-not-configured"}', 503]]) {
+  for (const [body, status] of [['', 200], ['', 204], ['<html>Site</html>', 200], ['', 404], ['', 405], ['<html>Function error</html>', 500], ['', 502], ['', 503], ['{"code":"server-not-configured"}', 503]]) {
     assert.equal((await readRecordResponse(new Response(status === 204 ? null : body, { status }))).fallback, true);
   }
 });
@@ -21,9 +21,14 @@ test('preserva JSON valido e detalhe inexistente', async () => {
   assert.deepEqual(await readRecordResponse(Response.json(null)), { fallback: false, value: null });
 });
 
-test('erros de acesso e falhas de servidor nao acionam fallback', async () => {
-  for (const status of [401, 403, 500, 502, 503]) {
+test('erros de acesso e erros estruturados da API nao acionam fallback', async () => {
+  for (const status of [401, 403]) {
     await assert.rejects(readRecordResponse(new Response('', { status })), status < 500 ? /sessão/ : /HTTP/);
   }
+  await assert.rejects(readRecordResponse(Response.json({ error: 'Falha na consulta.' }, { status: 500 })), /Falha na consulta/);
   await assert.rejects(readRecordResponse(Response.json({ error: 'Acesso negado.' }, { status: 403 })), /Acesso negado/);
+});
+
+test('erro JSON da hospedagem permite recuperacao pelas regras do Firebase', async () => {
+  assert.equal((await readRecordResponse(Response.json({ errorType: 'Runtime.ImportModuleError' }, { status: 500 }))).fallback, true);
 });

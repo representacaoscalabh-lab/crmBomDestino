@@ -101,18 +101,32 @@ service cloud.firestore {
       allow read, create, update, delete: if approved();
     }
 
+    function remittanceWritable(data) {
+      let id = data.get('remittanceId', '');
+      return id == '' || (exists(/databases/$(database)/documents/order_remittances/$(id))
+        && get(/databases/$(database)/documents/order_remittances/$(id)).data.status != 'deleting');
+    }
+
     match /orders/{orderId} {
       allow read, delete: if approved();
-      allow create, update: if approved() && request.resource.data.status == "normal";
+      allow create: if approved() && request.resource.data.status == "normal" && remittanceWritable(request.resource.data);
+      allow update: if approved() && request.resource.data.status == "normal"
+        && remittanceWritable(resource.data) && remittanceWritable(request.resource.data);
     }
 
     match /bonifications/{bonificationId} {
-      allow read, create, update, delete: if approved();
+      allow read, delete: if approved();
+      allow create: if approved() && remittanceWritable(request.resource.data);
+      allow update: if approved() && remittanceWritable(resource.data) && remittanceWritable(request.resource.data);
     }
 
     match /order_remittances/{remittanceId} {
-      allow read, create, update: if approved();
-      allow delete: if false;
+      allow read: if approved();
+      allow create: if approved() && request.resource.data.status != 'deleting';
+      allow update: if approved()
+        && ((resource.data.status != 'deleting' && request.resource.data.status != 'deleting')
+          || (admin() && request.resource.data.status == 'deleting'));
+      allow delete: if admin();
     }
 
     match /order_remittance_events/{eventId} {
@@ -122,7 +136,8 @@ service cloud.firestore {
         && request.resource.data.groupId is string
         && request.resource.data.remittanceId is string
         && request.resource.data.remittanceName is string
-        && request.resource.data.type in ['created', 'import_started', 'import_completed', 'import_failed', 'records_assigned', 'renamed']
+        && request.resource.data.type in ['created', 'import_started', 'import_completed', 'import_failed', 'records_assigned', 'renamed', 'records_deleted', 'deleted']
+        && (!(request.resource.data.type in ['records_deleted', 'deleted']) || admin())
         && request.resource.data.details is string
         && request.resource.data.details.size() <= 1000
         && request.resource.data.actorId == request.auth.uid

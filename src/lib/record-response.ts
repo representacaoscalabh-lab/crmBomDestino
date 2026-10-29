@@ -14,7 +14,7 @@ export async function readRecordResponse(response: Response): Promise<{ fallback
     throw new Error(details?.error || "Sua sessão não está autorizada. Entre novamente na sua conta.");
   }
   if ([404, 405].includes(response.status) ||
-      (response.status === 503 && details?.code === "server-not-configured") ||
+      (response.status >= 500 && (typeof details?.error !== "string" || details?.code === "server-not-configured")) ||
       (response.ok && !validJson)) {
     return { fallback: true, value: undefined };
   }

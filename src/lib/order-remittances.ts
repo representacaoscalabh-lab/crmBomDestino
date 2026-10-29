@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, doc, onSnapshot, query, serverTimestamp, where, writeBatch, type Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { collection, doc, getDoc, getDocs, limit, onSnapshot, query, serverTimestamp, where, writeBatch, runTransaction, type Timestamp } from "firebase/firestore";
+import { invalidateResource } from "@/lib/query-cache";
+import { auth, db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
 
 export type RemittanceNetwork = "mart_minas" | "oesa";
 export type RemittanceSource = "manual" | "mart_minas_pdf" | "oesa_pdf";
-export type RemittanceStatus = "ready" | "processing" | "failed";
-export type RemittanceEventType = "created" | "import_started" | "import_completed" | "import_failed" | "records_assigned" | "renamed";
+export type RemittanceStatus = "ready" | "processing" | "failed" | "deleting";
+export type RemittanceEventType = "created" | "import_started" | "import_completed" | "import_failed" | "records_assigned" | "renamed" | "records_deleted" | "deleted";
 
 export type OrderRemittance = {
   id: string;
@@ -57,15 +58,15 @@ const emptyRemittanceState = (groupId = ""): RemittanceSnapshotState => ({
   eventsLoaded: false,
 });
 
-export function useOrderRemittances(groupId: string, enabled = true, includeEvents = true) {
+export function useOrderRemittances(groupId: string, enabled = true, includeEvents = true, allGroups = false) {
   const { crmUser } = useAuth();
   const [state, setState] = useState<RemittanceSnapshotState>(() => emptyRemittanceState());
-  const shouldListen = enabled && crmUser?.status === "approved" && !!groupId;
+  const shouldListen = enabled && crmUser?.status === "approved" && (!!groupId || (allGroups && crmUser.role === "admin"));
 
   useEffect(() => {
     if (!shouldListen) return;
 
-    const remittanceQuery = query(collection(db, "order_remittances"), where("groupId", "==", groupId));
+    const remittanceQuery = query(collection(db, "order_remittances"), ...(allGroups ? [] : [where("groupId", "==", groupId)]));
     let active = true;
     const updateState = (update: Partial<RemittanceSnapshotState>) => setState(current => {
       if (!active) return current;
@@ -88,7 +89,7 @@ export function useOrderRemittances(groupId: string, enabled = true, includeEven
     }, cause => updateState({ remittancesError: errorMessage(cause, "remessas"), remittancesLoaded: true }));
     let stopEvents = () => {};
     if (includeEvents) {
-      const eventQuery = query(collection(db, "order_remittance_events"), where("groupId", "==", groupId));
+      const eventQuery = query(collection(db, "order_remittance_events"), ...(allGroups ? [] : [where("groupId", "==", groupId)]));
       stopEvents = onSnapshot(eventQuery, snapshot => {
         const events = snapshot.docs.map(item => ({ ...item.data(), id: item.id }) as OrderRemittanceEvent)
           .sort((left, right) => (right.createdAt?.toMillis() ?? 0) - (left.createdAt?.toMillis() ?? 0));
@@ -96,7 +97,7 @@ export function useOrderRemittances(groupId: string, enabled = true, includeEven
       }, cause => updateState({ eventsError: errorMessage(cause, "histórico"), eventsLoaded: true }));
     } else updateState({ events: [], eventsError: "", eventsLoaded: true });
     return () => { active = false; stopRemittances(); stopEvents(); };
-  }, [crmUser?.status, groupId, shouldListen, includeEvents]);
+  }, [crmUser?.status, groupId, shouldListen, includeEvents, allGroups]);
 
   const current = state.groupId === groupId ? state : emptyRemittanceState(groupId);
   return {
@@ -204,5 +205,40 @@ export async function assignRecordsToOrderRemittance(remittance: Pick<OrderRemit
       actor,
     ));
     await batch.commit();
+  }
+}
+
+
+/** Keep the parent until every linked record is removed; each committed batch has an audit event. */
+export async function deleteOrderRemittance(remittance: OrderRemittance, actor: RemittanceActor) {
+  const user = auth.currentUser;
+  if (!user || user.uid !== actor.id) throw new Error("Sessão inválida.");
+  const profile = await getDoc(doc(db, "users", user.uid));
+  if (profile.data()?.role !== "admin" || profile.data()?.status !== "approved") throw new Error("Somente administradores podem excluir remessas.");
+  const parent = doc(db, "order_remittances", remittance.id);
+  await runTransaction(db, async transaction => {
+    const current = await transaction.get(parent);
+    if (!current.exists()) throw new Error("Esta remessa já foi excluída.");
+    if (current.data().status === "processing") throw new Error("Aguarde a conclusão da importação antes de excluir.");
+    transaction.update(parent, { status: "deleting", updatedAt: serverTimestamp() });
+  });
+  try {
+    for (const resource of ["orders", "bonifications"] as const) {
+      while (true) {
+        const records = await getDocs(query(collection(db, resource), where("remittanceId", "==", remittance.id), limit(400)));
+        if (records.empty) break;
+        const batch = writeBatch(db);
+        records.docs.forEach(record => batch.delete(record.ref));
+        batch.set(doc(collection(db, "order_remittance_events")), eventDocument(remittance.id, remittance.groupId, remittance.name, "records_deleted", `${records.size} ${resource === "orders" ? "pedido(s)" : "bonificação(ões)"} excluído(s) com a remessa.`, actor));
+        await batch.commit();
+      }
+    }
+    const batch = writeBatch(db);
+    batch.delete(parent);
+    batch.set(doc(collection(db, "order_remittance_events")), eventDocument(remittance.id, remittance.groupId, remittance.name, "deleted", `Remessa excluída com todos os registros associados. Origem: ${remittance.source === "manual" ? "manual" : "importação"}${remittance.sourceFile ? `; arquivo: ${remittance.sourceFile}` : ""}.`.slice(0, 1000), actor));
+    await batch.commit();
+  } finally {
+    invalidateResource("orders");
+    invalidateResource("bonifications");
   }
 }

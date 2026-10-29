@@ -33,6 +33,9 @@ const { prepareCustomerImport, validateCustomerBatch } = load("customer-import")
 const { SPREADSHEET_ROW_NUMBER, ImportValidationError } = load("import-validation");
 const { isExportPeriodWithinLimit } = load("export-period");
 const { readOrderLines, parseNetworkOrderPage, classifyNetworkOrderTitle, buildNetworkOrderImport, buildNetworkBonificationImport } = load("network-order-pdf");
+const { assembleNetworkOrderPages } = load("network-order-pdf");
+const { ocrPageTextItems } = load("pdf-ocr");
+const { networkImportReview } = load("network-import-review");
 const customer = { id: "c1", code: "21000", name: "Loja", document: "04.737.552/0015-33", store: "1", city: "Alfenas", status: "Ativo" };
 
 test("export period helper enforces valid dates and a maximum of 31 inclusive days", () => {
@@ -369,11 +372,12 @@ test("importacao aceita planilha somente com CNPJ sem inventar nome ou codigo", 
 
 test("custo bruto segue o cabecalho e linha invalida gera aviso", () => {
   const header = { top: 180, items: [{ x: 220, text: "Emb" }, { x: 280, text: "Qtde" }, { x: 320, text: "Qtd.Canc." }, { x: 390, text: "Unit." }, { x: 425, width: 20, text: "Valor" }, { x: 465, width: 24, text: "Custo" }, { x: 505, width: 20, text: "Valor" }] };
-  const line = { top: 215, items: [{ x: 15, text: "13444" }, { x: 280, text: "2,00" }, { x: 390, text: "102,0000" }, { x: 459, width: 28, text: "212,00" }] };
+  const line = { top: 215, items: [{ x: 15, text: "13444" }, { x: 220, text: "CX" }, { x: 280, text: "2,00" }, { x: 390, text: "102,0000" }, { x: 459, width: 28, text: "212,00" }] };
   const warnings = [];
   const result = readOrderLines([header, line, { ...line, items: line.items.filter((item) => item.x !== 459) }], warnings);
   assert.equal(result.length, 1);
-  assert.equal(result[0].unitPackagePrice, 106);
+  assert.equal(result[0].unitPackagePrice, 102);
+  assert.equal(result[0].grossLineTotal, 212);
   assert.match(warnings[0], /13444.*Custo Bruto/);
   const canceled = { ...line, items: [...line.items, { x: 330, text: "3,00" }] };
   assert.equal(readOrderLines([header, canceled], warnings).length, 0);
@@ -381,11 +385,11 @@ test("custo bruto segue o cabecalho e linha invalida gera aviso", () => {
 
 test("pedidos e bonificacoes mantem custo bruto, quantidade, peso e avisos", () => {
   const parsed = { ...pdf, warnings: ["Pedido: item inválido ignorado"] };
-  const result = buildNetworkOrderImport([parsed], [customer], [product], []);
+  const result = buildNetworkOrderImport([pdf], [customer], [product], []);
   assert.equal(result.orders[0].totalValue, 212);
   assert.equal(result.orders[0].totalWeight, 12);
   assert.equal(result.orders[0].items[0].unitQuantity, 24);
-  assert.ok(result.warnings.includes(parsed.warnings[0]));
+  assert.equal(buildNetworkOrderImport([parsed], [customer], [product], []).orders.length, 0);
   const bonuses = buildNetworkBonificationImport([{ ...pdf, documentType: "bonification" }], [customer], [product], []);
   assert.equal(bonuses.bonifications[0].totalValue, 212);
 });
@@ -539,9 +543,9 @@ function martMinasPage(bonus, scale = 1, numberOverride) {
     : [["13444", "1,00", "102,0000", "106,00"], ["13480", "1,00", "192,0000", "219,07"], ["02815", "2,00", "257,4000", "528,50"], ["00063", "2,00", "126,0000", "262,58"]];
   rows.forEach(([code, quantity, unitPrice, gross], index) => {
     const top = (bonus ? 191 : 207) + index * 45;
-    add(code, 15, top, 22); add(quantity, 294, top, 20);
+    add(code, 15, top, 22); add("CX 12", 220, top, 28); add(quantity, 294, top, 20);
     add("0,00", 325, top, 20); add(unitPrice, 377, top, 35);
-    add("0,00", 435, top, 25); add(gross, 475, top, 32); add("0,00", 520, top, 20);
+    add((Number(quantity.replace(",", ".")) * Number(unitPrice.replace(",", "."))).toFixed(2).replace(".", ","), 435, top, 25); add(gross, 475, top, 32); add("0,00", 520, top, 20);
   });
   add("TOTAIS", 70, bonus ? 295 : 378);
   add("Valor total do pedido", 15, bonus ? 315 : 398); add(bonus ? "1.055,32" : "1.116,15", 145, bonus ? 315 : 398);
@@ -569,7 +573,7 @@ test("layout de compra le CNPJ de faturamento, quatro produtos, custo bruto, emi
     assert.equal(order.issueDate, "2026-10-08");
     assert.equal(order.totalGrossWeight, 20.808);
     assert.equal(order.totalGrossValue, 1116.15);
-    assert.equal(Math.round(order.lines.reduce((sum, line) => sum + line.quantity * line.unitPackagePrice, 0) * 100), 111615);
+    assert.equal(Math.round(order.lines.reduce((sum, line) => sum + line.grossLineTotal, 0) * 100), 111615);
   }
 });
 
@@ -587,7 +591,7 @@ test("layout de bonificacao preserva primeiro produto acima do antigo limite e n
     assert.equal(order.issueDate, "2026-10-08");
     assert.equal(order.totalGrossWeight, 19.848);
     assert.equal(order.totalGrossValue, 1055.32);
-    assert.equal(Math.round(order.lines.reduce((sum, line) => sum + line.quantity * line.unitPackagePrice, 0) * 100), 105532);
+    assert.equal(Math.round(order.lines.reduce((sum, line) => sum + line.grossLineTotal, 0) * 100), 105532);
   }
 });
 
@@ -679,4 +683,176 @@ test("dashboard exclui apenas lojas atribuídas a vendedores externos na rede at
   assert.equal(getExternalCustomerIds(customers, [{ ...groups[0], externalStoreSellers: {} }]).size, 0);
   assert.equal(getExternalCustomerIds(customers, [{ id: "g1", name: "Rede antiga" }]).size, 0);
   assert.equal(getExternalCustomerIds(customers, []).size, 0);
+});
+
+
+test("Mart Minas preserves screenshot quantities, item prices and independent gross order total", () => {
+  const header = { top: 180, items: [
+    { x: 220, text: "Emb" }, { x: 284, width: 61, text: "QtdeQtd.Canc." },
+    { x: 385, width: 20, text: "Valor" }, { x: 386, width: 18, text: "Unit." },
+    { x: 435, width: 20, text: "Valor" }, { x: 473, width: 23, text: "Custo" }, { x: 518, width: 20, text: "Valor" },
+  ] };
+  const row = (top, code, quantity, price, gross) => ({ top, items: [
+    { x: 15, text: code }, { x: 220, text: code === "4046" ? "KG" : "CX" }, { x: 294, width: 20, text: quantity },
+    { x: 377, width: 35, text: price }, { x: 475, width: 32, text: gross },
+  ] });
+  const warnings = [];
+  const lines = readOrderLines([header, row(215, "4046", "10,00", "62,0000", "639,53"), row(250, "2816", "1,00", "217,6800", "223,47")], warnings);
+  assert.equal(warnings.length, 0);
+  assert.deepEqual(Array.from(lines, line => line.quantity), [10, 1]);
+  const products = [{ ...product, codeBox: "4046", weightPerBox: 10 }, { ...product, id: "p2", codeBox: "2816", quantityPerBox: 24 }];
+  const result = buildNetworkOrderImport([{ ...pdf, lines, totalGrossValue: 863 }], [customer], products, []);
+  const order = result.orders[0];
+  assert.equal(order.totalValue, 863);
+  assert.deepEqual(Array.from(order.items, item => item.boxQuantity), [1, 1]);
+  assert.equal(order.items[1].unitQuantity, 24);
+  assert.equal(order.items[0].unitPrice, 62);
+  assert.equal(order.items[1].unitPrice, 217.68);
+  assert.equal(Math.round(order.items.reduce((sum, item) => sum + item.subtotal, 0) * 100), 83768);
+  const incomplete = buildNetworkOrderImport([{ ...pdf, lines, totalGrossValue: 863 }], [customer], products.slice(0, 1), []);
+  assert.equal(incomplete.orders.length, 0);
+});
+
+const sulminasFixture = JSON.parse(fs.readFileSync(new URL("./fixtures/mart-minas-sulminas-ocr.json", import.meta.url), "utf8"));
+function sulminasPages() {
+  return sulminasFixture.pages.map((page) => parseNetworkOrderPage(ocrPageTextItems(page.data, page.height, page.scale), page.height, page.width));
+}
+
+test("PDF Sulminas: six real OCR pages produce four complete orders without footer errors", () => {
+  const pages = sulminasPages();
+  for (const index of [2, 5]) {
+    assert.equal(pages[index].itemCount, 0);
+    assert.equal(pages[index].warnings.length, 0);
+  }
+  const orders = assembleNetworkOrderPages(pages);
+  assert.deepEqual(Array.from(orders, (order) => order.orderNumber), ["6388364", "6388365", "6388372", "6388373"]);
+  assert.deepEqual(Array.from(orders, (order) => order.totalGrossValue), [863, 1116.15, 863, 1705.46]);
+  assert.deepEqual(Array.from(orders, (order) => Array.from(order.lines, (line) => line.quantity)), [[10, 1], [1, 1, 2, 2], [10, 1], [2, 2, 3, 2]]);
+  assert.deepEqual(Array.from(orders[0].lines, (line) => line.measure), ["KG", "CX"]);
+  assert.equal(orders.flatMap((order) => order.warnings).length, 0);
+  const notices = orders.flatMap((order) => order.notices ?? []);
+  assert.equal(notices.length, 2);
+  assert.ok(notices.some((notice) => notice.includes("página 3: Página em branco")));
+  assert.ok(notices.some((notice) => notice.includes("página 6: Página em branco")));
+  const clients = ["04737552005873", "04737552006411"].map((document, index) => ({ ...customer, id: `c${index}`, document }));
+  const products = ["4046", "2816", "13444", "13480", "02815", "00063"].map((codeBox, index) => ({ ...product, id: `p${index}`, codeBox, weightPerBox: codeBox === "4046" ? 10 : 6 }));
+  const imported = buildNetworkOrderImport(orders, clients, products, []);
+  assert.equal(imported.orders.length, 4);
+  assert.equal(imported.warnings.length, 0);
+  assert.equal(imported.orders.flatMap((order) => order.items).length, 12);
+  assert.deepEqual(Array.from(imported.orders[0].items, (item) => item.boxQuantity), [1, 1]);
+  assert.deepEqual(Array.from(imported.orders[2].items, (item) => item.boxQuantity), [1, 1]);
+  assert.equal(Math.round(imported.orders.reduce((sum, order) => sum + order.totalValue, 0) * 100), 454761);
+});
+
+test("Mart Minas KG rounds boxes using registered weight and preserves requested kg and prices", () => {
+  const catalog = { ...product, weightPerBox: 10, quantityPerBox: 4 };
+  for (const [quantity, boxes] of [[12, 1], [20, 2], [19.4, 2], [15, 2], [4, 1]]) {
+    const parsed = { ...pdf, totalGrossValue: 999, lines: [{ ...pdf.lines[0], measure: "KG", quantity, unitPackagePrice: 62 }] };
+    const result = buildNetworkOrderImport([parsed], [customer], [catalog], []);
+    assert.equal(result.warnings.length, 0);
+    const item = result.orders[0].items[0];
+    assert.equal(item.boxQuantity, boxes);
+    assert.equal(item.packageQuantity, boxes);
+    assert.equal(item.unitQuantity, quantity);
+    assert.equal(item.totalWeight, quantity);
+    assert.equal(item.pieces, boxes * 4);
+    assert.equal(item.unitPrice, 62);
+    assert.equal(item.subtotal, Math.round(quantity * 62 * 100) / 100);
+    assert.equal(result.orders[0].totalValue, 999);
+  }
+});
+
+test("Mart Minas subtracts canceled kg before conversion and leaves CX quantities unchanged", () => {
+  const catalog = { ...product, measure: "KG", weightPerBox: 10 };
+  const kg = { ...pdf, lines: [{ ...pdf.lines[0], measure: "KG", quantity: 25, canceledQuantity: 13 }] };
+  const converted = buildNetworkOrderImport([kg], [customer], [catalog], []).orders[0].items[0];
+  assert.equal(converted.boxQuantity, 1);
+  assert.equal(converted.unitQuantity, 12);
+  assert.equal(converted.subtotal, 12 * 106);
+  const cx = { ...pdf, lines: [{ ...pdf.lines[0], measure: "CX", quantity: 20 }] };
+  assert.equal(buildNetworkOrderImport([cx], [customer], [catalog], []).orders[0].items[0].boxQuantity, 20);
+  assert.equal(buildNetworkBonificationImport([{ ...kg, documentType: "bonification" }], [customer], [catalog], []).bonifications[0].items[0].boxQuantity, 1);
+});
+
+test("Mart Minas KG blocks missing or invalid box weights instead of guessing boxes", () => {
+  const parsed = { ...pdf, lines: [{ ...pdf.lines[0], measure: "KG", quantity: 12 }] };
+  for (const weightPerBox of [undefined, 0, -1, NaN, Infinity]) {
+    const result = buildNetworkOrderImport([parsed], [customer], [{ ...product, weightPerBox }], []);
+    assert.equal(result.orders.length, 0);
+    assert.ok(result.warnings.some((warning) => warning.includes("peso por caixa")));
+  }
+});
+
+test("Mart Minas reads joined KG1 and CX24 cells and blocks an unrecognized Emb", () => {
+  const page = sulminasFixture.pages[0];
+  const items = ocrPageTextItems(page.data, page.height, page.scale);
+  const kg = items.find((item) => item.str === "KG");
+  const cx = items.find((item) => item.str === "CX");
+  assert.ok(kg && cx);
+  kg.str = "KG1"; cx.str = "CX24";
+  const parsed = parseNetworkOrderPage(items, page.height, page.width);
+  assert.equal(parsed.warnings.length, 0);
+  assert.deepEqual(Array.from(parsed.order.lines, (line) => line.measure), ["KG", "CX"]);
+  kg.str = "UN";
+  assert.ok(parseNetworkOrderPage(items, page.height, page.width).warnings.some((warning) => warning.includes("coluna Emb")));
+});
+
+test("footer-only recognition does not suppress broken product tables or missing order pages", () => {
+  const page = sulminasFixture.pages[2];
+  const footer = ocrPageTextItems(page.data, page.height, page.scale);
+  const brokenTable = [...footer, { str: "Qtde", transform: [1, 0, 0, 1, 284, page.height - 178], width: 18 }];
+  assert.ok(parseNetworkOrderPage(brokenTable, page.height, page.width).warnings.length > 0);
+  assert.throws(() => assembleNetworkOrderPages([parseNetworkOrderPage(footer, page.height, page.width)]));
+});
+
+test("an empty page is reported as information without blocking complete orders", () => {
+  const pages = sulminasPages();
+  pages.splice(1, 0, parseNetworkOrderPage([], 595, 842));
+  const orders = assembleNetworkOrderPages(pages);
+  assert.equal(orders.length, 4);
+  assert.equal(orders.flatMap((order) => order.warnings).length, 0);
+  assert.ok(orders.flatMap((order) => order.notices ?? []).some((notice) => notice.includes("página 2: Página em branco")));
+});
+
+test("quantity OCR errors block an order when item multiplication or the quantity total differs", () => {
+  const page = sulminasFixture.pages[0];
+  const items = ocrPageTextItems(page.data, page.height, page.scale);
+  const quantity = items.find((item) => item.str === "10,00" && item.transform[4] > 280 && item.transform[4] < 320);
+  assert.ok(quantity);
+  quantity.str = "1,00";
+  const parsed = parseNetworkOrderPage(items, page.height, page.width);
+  assert.ok(parsed.warnings.length > 0);
+  const assembled = assembleNetworkOrderPages([parsed]);
+  const result = buildNetworkOrderImport(assembled, [{ ...customer, document: "04737552005873" }], [{ ...product, codeBox: "2816" }], []);
+  assert.equal(result.orders.length, 0);
+});
+
+test("original day-14 PDF text retains the two orders around a blank closing page", () => {
+  const fixture = JSON.parse(fs.readFileSync(new URL("./fixtures/mart-minas-day14-text.json", import.meta.url), "utf8"));
+  const pages = fixture.pages.map((page) => parseNetworkOrderPage(page.items, page.height, page.width));
+  assert.equal(pages[2].isBlankPage, true);
+  assert.equal(pages[2].warnings.length, 0);
+  const documents = assembleNetworkOrderPages(pages);
+  assert.deepEqual(Array.from(documents, (document) => document.orderNumber), ["6388114", "6388115"]);
+  assert.equal(documents.flatMap((document) => document.warnings).length, 0);
+  assert.deepEqual(Array.from(documents[1].sourcePages), [2, 3]);
+  assert.equal(documents[0].lines[0].quantity, 10);
+  assert.equal(documents[0].lines[0].measure, "KG");
+  // Closing-page recognition is independent of page scale and signature position.
+  const moved = fixture.pages[2].items.map((item) => ({ ...item, transform: item.transform.map((value, index) => index === 5 ? value - 100 : value) }));
+  assert.equal(parseNetworkOrderPage(moved, fixture.pages[2].height, fixture.pages[2].width).isBlankPage, true);
+});
+
+test("document review accounts separately for ready, duplicate and blocked documents and kg conversion", () => {
+  const parsed = [{ ...pdf, sourcePages: [1, 2], lines: [{ ...pdf.lines[0], quantity: 12, measure: "KG" }] },
+    { ...pdf, orderNumber: "6388343" }, { ...pdf, orderNumber: "6388344" }];
+  const products = [{ ...product, weightPerBox: 10 }];
+  const prepared = buildNetworkOrderImport([parsed[0]], [customer], products, []).orders;
+  const review = networkImportReview(parsed, prepared, [], ["Pedido 6388343/L: já existe no CRM.", "Pedido 6388344/L: produto não cadastrado."], [customer], products);
+  assert.match(review, /Documentos identificados: 3 \| Prontos: 1 \| Já existentes: 1 \| Bloqueados: 1/);
+  assert.match(review, /Páginas: 1, 2/);
+  assert.match(review, /Qtde PDF 12; cancelada 0; peso cadastrado por embalagem 10 kg; caixas CRM 1/);
+  assert.match(review, /6388343\/L.*JÁ EXISTE NO CRM/);
+  assert.match(review, /6388344\/L.*BLOQUEADO/);
 });

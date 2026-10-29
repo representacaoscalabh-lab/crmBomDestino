@@ -50,6 +50,14 @@ npm.cmd run build
 
 Em PowerShell com bloqueio de scripts `.ps1`, use os executáveis `.cmd` como nos exemplos.
 
+A importação Mart Minas lê texto e usa OCR local quando necessário. Páginas de encerramento com cabeçalho repetido e assinaturas são associadas ao pedido sem adicionar produtos. As quantidades são conferidas com a linha TOTAIS, os preços com Valor Item e o custo bruto com Valor total do pedido. O preço registrado vem de Valor Unit.; o total do pedido vem de Dados adicionais.
+
+`npm.cmd run dev` e `npm.cmd run build` preparam automaticamente os arquivos PDF.js e OCR em `public/vendor/`. Reinicie pelo comando npm depois de atualizar o código. Esses arquivos são servidos pelo próprio CRM, sem enviar o PDF para serviços externos. Para conferir um arquivo completo sem gravar no banco:
+
+```powershell
+node scripts/verify-network-pdf.cjs "C:\caminho\pedidos.pdf" "resultado.json"
+```
+
 ## Documentação
 
 - [Índice da documentação](Documentacao/README.md)
@@ -63,3 +71,5 @@ Em PowerShell com bloqueio de scripts `.ps1`, use os executáveis `.cmd` como no
 - [Ativação, migrações e limitações do Firebase](docs/ativacao-reducao-leituras-firebase.md)
 
 Documentos de versões anteriores ficam identificados como históricos; eles não substituem os guias atuais.
+
+Na coluna Emb do Mart Minas, KG representa quilos: as caixas s?o calculadas dividindo a quantidade l?quida de cancelamentos pelo peso cadastrado por caixa e arredondando para o inteiro mais pr?ximo (m?nimo de uma caixa). CX mant?m as caixas informadas no PDF. A convers?o n?o arredonda os quilos nem altera os valores do pedido. Itens KG sem peso cadastrado v?lido bloqueiam o pedido para corre??o do cadastro.

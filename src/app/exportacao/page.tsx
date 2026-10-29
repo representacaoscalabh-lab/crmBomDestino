@@ -3,6 +3,7 @@
 import { ImportIssues } from "@/components/import-issues";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, CalendarDays, Download, FileSpreadsheet, FileText, Gift, Network, Package, ShoppingCart, Upload, UsersRound } from "lucide-react";
 import { useCrmStore } from "@/lib/store";
@@ -215,21 +216,21 @@ export default function ExportPage() {
             : [{ title: "Exportar produtos", description: "Exporta o catálogo comercial completo para uma planilha.", icon: Package, action: exportProducts }];
   return <div className="page-content module-content import-export-page">
     <section className="panel module-panel export-panel">
-      {exportBusy && <div role="status">Preparando exportação: {exportCount} registros carregados. <button type="button" className="button button-light" onClick={() => exportController.current?.abort()}>Cancelar</button></div>}
-      <div className="module-heading"><span className="module-title-icon"><FileSpreadsheet size={21} /></span><div className="module-title-copy"><p className="eyebrow">DADOS E RELATÓRIOS</p><h1>Importações e exportações</h1><p>Importe documentos com leitura inteligente ou exporte os dados da base.</p></div><span className="source-pill">Dados da base atual</span></div>
+      {exportBusy && <div className="export-progress-banner" role="status">Preparando exportação · {exportCount.toLocaleString("pt-BR")} registros carregados.<button type="button" className="button button-light" onClick={() => exportController.current?.abort()}>Cancelar</button></div>}
+      <div className="module-heading"><span className="import-export-brand-logo"><Image src="/logo-bom-destino.jpg" alt="Bom Destino" width={46} height={46} priority /></span><div className="module-title-copy"><p className="eyebrow">CENTRAL DE DADOS</p><h1>Importações e exportações</h1><p>Encontre em um só lugar as opções de entrada e saída de dados do CRM.</p></div><span className="source-pill">Dados da base atual</span></div>
       <div className="import-export-tabs" role="tablist" aria-label="Importar ou exportar dados">
-        <button type="button" role="tab" aria-selected={activeTab === "import"} className={activeTab === "import" ? "import-export-tab-active" : ""} onClick={() => setActiveTab("import")}><Upload size={16} /> Importações</button>
-        <button type="button" role="tab" aria-selected={activeTab === "export"} className={activeTab === "export" ? "import-export-tab-active" : ""} onClick={() => setActiveTab("export")}><Download size={16} /> Exportações</button>
+        <button type="button" role="tab" aria-selected={activeTab === "import"} aria-controls="import-options-panel" className={activeTab === "import" ? "import-export-tab-active" : ""} onClick={() => setActiveTab("import")}><Upload size={16} /> Importações</button>
+        <button type="button" role="tab" aria-selected={activeTab === "export"} aria-controls="export-options-panel" className={activeTab === "export" ? "import-export-tab-active" : ""} onClick={() => setActiveTab("export")}><Download size={16} /> Exportações</button>
       </div>
-      {activeTab === "import" ? <div className="intelligent-import-area">
-        <div className="import-category-label">TIPOS DE IMPORTAÇÃO DISPONÍVEIS NO CRM</div>
+      {activeTab === "import" ? <div className="intelligent-import-area" id="import-options-panel" role="tabpanel">
+        <div className="import-export-section-heading"><div><p className="eyebrow">ENTRADA DE DADOS</p><h2>O que você deseja importar?</h2><p>Selecione um formato. A importação será aberta no fluxo próprio para conferência.</p></div><span>6 opções</span></div>
         <div className="intelligent-import-options">
-          <article className={`intelligent-import-card ${importMode === "general" ? "intelligent-import-card-active" : ""}`}><span className="intelligent-import-icon"><FileSpreadsheet size={19} /></span><h2>PDF geral de pedidos e bonificações</h2><p>Reconhece pedidos de compra e bonificações, mostra uma prévia e permite conferir os registros antes de salvar.</p><button className="button button-outline" onClick={() => { setImportMode("general"); resetImportPreview(); }}>Selecionar PDF</button></article>
-          <article className="intelligent-import-card"><span className="intelligent-import-icon"><Network size={19} /></span><h2>PDF Mart Minas</h2><p>Importa pedidos e bonificações, identifica as lojas e cria a remessa automaticamente.</p><Link href="/pedidos" className="button button-outline">Abrir importação de redes <ArrowRight size={15} /></Link></article>
-          <article className="intelligent-import-card"><span className="intelligent-import-icon"><Network size={19} /></span><h2>PDF OESA</h2><p>Importa pedidos da rede OESA e gera uma remessa para o arquivo selecionado.</p><Link href="/pedidos" className="button button-outline">Abrir importação de redes <ArrowRight size={15} /></Link></article>
-          <article className="intelligent-import-card"><span className="intelligent-import-icon"><FileText size={19} /></span><h2>Pedido por print</h2><p>Importe um pedido individual por imagem, selecione a loja e confira os itens.</p><Link href="/pedidos" className="button button-outline">Abrir pedidos <ArrowRight size={15} /></Link></article>
-          <article className="intelligent-import-card"><span className="intelligent-import-icon"><UsersRound size={19} /></span><h2>Clientes por planilha</h2><p>Importe cadastros de clientes a partir de uma planilha XLS ou XLSX.</p><Link href="/clientes" className="button button-outline">Importar clientes <ArrowRight size={15} /></Link></article>
-          <article className="intelligent-import-card"><span className="intelligent-import-icon"><Package size={19} /></span><h2>Produtos por planilha</h2><p>Importe e atualize o catálogo comercial a partir de uma planilha.</p><Link href="/produtos" className="button button-outline">Importar produtos <ArrowRight size={15} /></Link></article>
+          <article className={`intelligent-import-card ${importMode === "general" ? "intelligent-import-card-active" : ""}`}><span className="intelligent-import-icon"><FileSpreadsheet size={19} /></span><h2>PDF de pedidos e bonificações</h2><p>Classifica os documentos e apresenta os registros para conferência antes de salvar.</p><button className="button button-outline" onClick={() => { setImportMode("general"); resetImportPreview(); }}>Selecionar PDF</button></article>
+          <article className="intelligent-import-card"><span className="intelligent-import-icon"><Network size={19} /></span><h2>PDF Mart Minas</h2><p>Reconhece pedidos e bonificações, relaciona lojas e produtos e registra uma remessa.</p><Link href="/pedidos" className="button button-outline">Abrir fluxo Mart Minas <ArrowRight size={15} /></Link></article>
+          <article className="intelligent-import-card"><span className="intelligent-import-icon"><Network size={19} /></span><h2>PDF OESA</h2><p>Importa pedidos da rede OESA e cria uma remessa vinculada ao arquivo.</p><Link href="/pedidos" className="button button-outline">Abrir fluxo OESA <ArrowRight size={15} /></Link></article>
+          <article className="intelligent-import-card"><span className="intelligent-import-icon"><FileText size={19} /></span><h2>Pedido por imagem</h2><p>Inclua capturas de pedidos OESA, escolha a loja e revise os itens reconhecidos.</p><Link href="/pedidos" className="button button-outline">Importar por imagem <ArrowRight size={15} /></Link></article>
+          <article className="intelligent-import-card"><span className="intelligent-import-icon"><UsersRound size={19} /></span><h2>Clientes por planilha</h2><p>Importe ou atualize cadastros usando arquivo XLS ou XLSX.</p><Link href="/clientes" className="button button-outline">Abrir importação de clientes <ArrowRight size={15} /></Link></article>
+          <article className="intelligent-import-card"><span className="intelligent-import-icon"><Package size={19} /></span><h2>Produtos por planilha</h2><p>Importe e atualize o catálogo comercial a partir de planilha.</p><Link href="/produtos" className="button button-outline">Abrir importação de produtos <ArrowRight size={15} /></Link></article>
         </div>
         {importMode && <section className="intelligent-import-workspace">
           <div className="intelligent-import-workspace-heading"><div><p className="eyebrow">IMPORTAÇÃO INTELIGENTE</p><h2>Importar PDF geral de pedidos e bonificações</h2></div><button className="button button-light" onClick={() => { setImportMode(null); setImportFile(null); resetImportPreview(); }}>Fechar</button></div>
@@ -259,8 +260,8 @@ export default function ExportPage() {
           </div>}
           <button type="button" className="button button-primary intelligent-import-read" disabled={isImporting || !importFile} onClick={() => void readIntelligentImport()}><FileText size={15} /> {isImporting ? "Processando..." : "Ler e classificar documento"}</button>
         </section>}
-      </div> : <div className="export-options">
-        <div className="export-category-label">ESCOLHA O QUE DESEJA EXPORTAR</div>
+      </div> : <div className="export-options" id="export-options-panel" role="tabpanel">
+        <div className="import-export-section-heading"><div><p className="eyebrow">SAÍDA DE DADOS</p><h2>Escolha o que deseja exportar</h2><p>Selecione uma categoria para ver formatos, filtros e limites.</p></div><span>6 categorias</span></div>
         <div className="export-categories">{categories.map(({ name, detail, icon: Icon, count }) => <button type="button" key={name} aria-pressed={category === name} className={`export-category ${category === name ? "export-category-active" : ""}`} onClick={() => { setCategory(name); setExportError(""); }}><span><Icon size={17} /></span><strong>{name}</strong><small>{detail}</small><i>{count}</i></button>)}</div>
         <div className="export-options-heading"><div><p className="eyebrow">EXPORTAÇÃO</p><h2>{category}</h2><p>Configure os dados e gere somente a planilha necessária.</p></div></div>
         {category === "Comissões" && <div className="export-context-controls"><label><CalendarDays size={16} /> Mês das comissões<input type="month" max={today.slice(0, 7)} value={commissionMonth} onChange={event => setCommissionMonth(event.target.value)} /></label><small>Consulta limitada ao mês selecionado.</small></div>}
@@ -276,6 +277,16 @@ export default function ExportPage() {
         {category === "Bonificações" && <p className="export-current-month-note">O arquivo incluirá apenas as bonificações de {today.slice(0, 7)}. Esse limite evita leituras históricas desnecessárias.</p>}
         {exportError && <div className="import-feedback feedback-warning" role="alert">{exportError}</div>}
         <div className="export-card-grid">{exportCards.map(({ title, description, icon: Icon, action }) => <article className="export-card" key={title}><span className="export-card-icon"><Icon size={18} /></span><h3>{title}</h3><p>{description}</p><button type="button" disabled={exportBusy || (category === "Pedidos" && (!selectedRemittance || !isExportPeriodWithinLimit(orderStart, orderEnd) || remittanceData.loading || !!remittanceData.error)) || (category === "Lojas por rede" && !selectedGroup)} onClick={() => { setExportError(""); setExportBusy(true); setExportCount(0); const controller = new AbortController(); exportController.current = controller; void Promise.resolve(action(controller.signal)).catch((cause: unknown) => { setExportError(cause instanceof Error ? cause.message : "Falha ao gerar a planilha."); }).finally(() => setExportBusy(false)); }}><Download size={15} /> Exportar XLSX</button></article>)}</div>
+        <section className="export-report-links" aria-labelledby="export-report-links-title">
+          <div className="export-report-links-heading"><div><p className="eyebrow">RELATÓRIOS</p><h3 id="export-report-links-title">Outras exportações XLSX</h3><p>Relatórios com filtros e detalhes próprios também geram planilhas.</p></div></div>
+          <div className="export-report-links-grid">
+            <Link href="/relatorios"><FileSpreadsheet size={16} /><span><strong>Central de relatórios</strong><small>Relatórios comerciais e planilhas</small></span><ArrowRight size={15} /></Link>
+            <Link href="/relatorios/mart-minas"><Network size={16} /><span><strong>Mart Minas</strong><small>Comissões, lojas e produtos</small></span><ArrowRight size={15} /></Link>
+            <Link href="/relatorios/oesa-nova-safra"><Network size={16} /><span><strong>OESA · Nova Safra</strong><small>Comissões, lojas e produtos</small></span><ArrowRight size={15} /></Link>
+            <Link href="/crescimento/clientes"><UsersRound size={16} /><span><strong>Crescimento de clientes</strong><small>Análise com exportação da carteira</small></span><ArrowRight size={15} /></Link>
+            <Link href="/crescimento/produtos"><Package size={16} /><span><strong>Crescimento de produtos</strong><small>Análise e histórico em planilha</small></span><ArrowRight size={15} /></Link>
+          </div>
+        </section>
       </div>}
     </section>
   </div>;

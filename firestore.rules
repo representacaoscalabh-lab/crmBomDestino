@@ -104,7 +104,7 @@ service cloud.firestore {
     function remittanceWritable(data) {
       let id = data.get('remittanceId', '');
       return id == '' || (exists(/databases/$(database)/documents/order_remittances/$(id))
-        && get(/databases/$(database)/documents/order_remittances/$(id)).data.status != 'deleting');
+        && get(/databases/$(database)/documents/order_remittances/$(id)).data.get('status', 'ready') != 'deleting');
     }
 
     match /orders/{orderId} {
@@ -122,10 +122,10 @@ service cloud.firestore {
 
     match /order_remittances/{remittanceId} {
       allow read: if approved();
-      allow create: if approved() && request.resource.data.status != 'deleting';
+      allow create: if approved() && request.resource.data.get('status', 'ready') != 'deleting';
       allow update: if approved()
-        && ((resource.data.status != 'deleting' && request.resource.data.status != 'deleting')
-          || (admin() && request.resource.data.status == 'deleting'));
+        && ((admin() && request.resource.data.get('status', 'ready') == 'deleting')
+          || (resource.data.get('status', 'ready') != 'deleting' && request.resource.data.get('status', 'ready') != 'deleting'));
       allow delete: if admin();
     }
 

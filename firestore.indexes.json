@@ -1,5 +1,6 @@
 {
   "indexes": [
+    { "collectionGroup": "bonifications", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "issueDate", "order": "ASCENDING" }, { "fieldPath": "totalValue", "order": "ASCENDING" }, { "fieldPath": "totalWeight", "order": "ASCENDING" }] },
     { "collectionGroup": "bonifications", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "reason", "order": "ASCENDING" }, { "fieldPath": "issueDate", "order": "DESCENDING" }] },
     { "collectionGroup": "bonifications", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "reason", "order": "ASCENDING" }, { "fieldPath": "issueDate", "order": "ASCENDING" }] }
   ],

@@ -21,3 +21,36 @@
 .dc-footer a { display: inline-flex; align-items: center; gap: 5px; color: var(--brand); text-decoration: none; }
 @media (max-width: 1100px) { .dc-summary { grid-template-columns: 1fr; gap: 24px; } .dc-metrics { padding: 22px 0 0; border-left: 0; border-top: 1px solid var(--line); } }
 @media (max-width: 600px) { .dashboard-commission { padding: 20px; } .dc-heading { align-items: flex-start; gap: 12px; flex-wrap: wrap; } .dc-summary { margin-top: 24px; } .dc-metrics { grid-template-columns: 1fr 1fr; gap: 22px 16px; } .dc-metrics dd { font-size: 19px; } }
+
+.dashboard-redesign .dashboard-commission.dc-modern { padding: 18px; border-radius: 14px; }
+.dc-modern .dc-heading { gap: 12px; }
+.dc-modern .dc-report { padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); }
+.dc-modern .dc-title h2 { font-size: 17px; font-weight: 700; }
+.dc-modern .dc-title p { margin-top: 3px; font-size: 11px; }
+.dc-modern .dc-title .dc-scope-badge { display: inline-flex; align-items: center; gap: 5px; width: fit-content; padding: 3px 7px; border: 1px solid color-mix(in srgb, var(--brand) 18%, var(--line)); border-radius: 999px; background: var(--brand-soft); color: var(--brand); font-size: 9px; font-weight: 700; }
+.dc-modern .dc-scope-badge span { color: var(--muted); }
+.dc-financials { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: center; gap: 16px; margin: 20px 0 16px; }
+.dc-financials > div { display: grid; min-width: 0; gap: 7px; }
+.dc-financials span { color: var(--muted); font-size: 10px; font-weight: 600; }
+.dc-financials small { color: var(--muted); font-size: 9px; line-height: 1.4; }
+.dc-financials strong { color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -.8px; overflow-wrap: anywhere; }
+.dc-revenue { padding: 12px 14px; border: 1px solid var(--line); border-radius: 11px; background: linear-gradient(140deg, var(--surface), var(--surface-soft)); }
+.dc-revenue strong { font-size: clamp(23px, 2.1vw, 30px); line-height: 1.2; color: var(--brand); }
+.dc-financials .dc-total { padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--brand) 16%, var(--line)); border-radius: 11px; background: var(--brand-soft); }
+.dc-total strong { font-size: clamp(20px, 1.6vw, 25px); color: var(--brand); }
+.dc-activity { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; padding-bottom: 13px; border-bottom: 1px solid var(--line); }
+.dc-activity > div { display: grid; gap: 4px; padding: 9px 11px; border-radius: 9px; background: var(--surface-soft); }
+.dc-activity dt { color: var(--muted); font-size: 11px; }
+.dc-activity dd { margin: 0; color: var(--ink); font-size: 15px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.dc-allocations { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 15px 0 0; }
+.dc-allocations > div { padding: 9px 11px; border: 1px solid var(--line); border-left: 3px solid var(--brand); border-radius: 8px; background: var(--surface); }
+.dc-allocations > div:last-child { border-left-color: #ad8f76; }
+.dc-allocations dt { color: var(--muted); font-size: 10px; }
+.dc-allocations dd { margin: 5px 0 0; color: var(--ink); font-size: 17px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.dc-modern .dc-footer { margin-top: 15px; }
+@media (max-width: 420px) {
+  .dc-financials { grid-template-columns: 1fr; gap: 12px; }
+  .dc-allocations { gap: 9px; }
+  .dc-allocations dd { font-size: 15px; }
+  .dc-modern .dc-heading { flex-wrap: wrap; }
+}

@@ -1,3 +1,4 @@
+import { loadPdfRuntime } from "@/lib/pdf-runtime";
 import type { Customer, Order, OrderItem, Product } from "@/lib/types";
 
 type TextItem = { str: string; transform: number[]; width?: number };
@@ -70,8 +71,7 @@ export function parseOesaOrderPage(items: TextItem[]): OesaOrder | null {
 }
 
 export async function parseOesaOrderPdf(data: Uint8Array, onProgress: (value: number) => void): Promise<OesaOrder[]> {
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL("../../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).toString();
+  const pdfjs = await loadPdfRuntime();
   const document = await pdfjs.getDocument({ data, isEvalSupported: false }).promise;
   const orders = new Map<string, OesaOrder>();
   try {

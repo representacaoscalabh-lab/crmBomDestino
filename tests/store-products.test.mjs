@@ -181,7 +181,7 @@ test('dashboard de comissoes mostra somente Mart Minas e separa WRRJ e Sul', () 
   const dashboard = load('lib/dashboard-commission.ts', id => id === '@/lib/dashboard-scope' ? scope : commission);
   const { DashboardCommission } = load('components/dashboard-commission.tsx', id => id === '@/lib/dashboard-commission' ? dashboard : id === '@/lib/mart-minas-settings' ? { useMartMinasSettings: () => ({ groupId: group.id, loading: false }) } : id.endsWith('.css') ? {} : require(id));
   for (const [orders, groups, expected] of [
-    [[{ customerId: 'a', status: 'normal', totalValue: 100, totalWeight: 10 }], [{ ...group, commissionPercent: 4 }], '1 loja realizou compras'],
+    [[{ customerId: 'a', status: 'normal', totalValue: 100, totalWeight: 10 }], [{ ...group, commissionPercent: 4 }], 'WRRJ + Sul de Minas'],
     [[{ customerId: 'a', status: 'normal', totalValue: 100, totalWeight: 10 }], [group], 'Configure o percentual para visualizar a comissão'],
     [[], [{ ...group, commissionPercent: 4 }], 'Nenhum pedido no per\u00edodo'],
   ]) {
@@ -212,7 +212,7 @@ test('dashboard apresenta visao comercial renovada com faturamento, analises e s
   assert.match(html, /O que está por trás dos resultados/);
   assert.match(html, /Produtos mais vendidos/);
   assert.doesNotMatch(html, /Clientes com compra por mês|Peso vendido no ano|Bonificações no período|Valor médio por pedido/);
-  assert.match(html, /Período de análise/);
+  assert.doesNotMatch(html, /Período de análise|Escolha um intervalo para atualizar os indicadores/);
   assert.match(html, /Mês atual/);
   assert.match(html, /Mês anterior/);
   assert.match(html, /Ano atual/);
@@ -229,6 +229,39 @@ test('donut da dashboard compacta totais longos sem perder o valor exato acessí
   const { default: HomePage } = load('app/page.tsx', id => id === '@/lib/use-dashboard-records' ? { useDashboardRecords: resource => ({ rows: source[resource], loading: false }) } : id === '@/lib/store' ? { useCrmStore: () => source } : id === '@/lib/dashboard-scope' ? scope : id === '@/components/dashboard-commission' ? { DashboardCommission: () => React.createElement('section', null, 'Comissoes') } : id.endsWith('.css') ? {} : require(id));
   const html = renderToStaticMarkup(React.createElement(HomePage));
   assert.match(html, /title="187\.625,7 kg">187,6\u00a0mil<\/strong>/);
+});
+
+test('dashboard totals, monthly chart and comparisons include WRRJ and Sul de Minas', () => {
+  const now = new Date();
+  const date = (offset) => {
+    const value = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-01`;
+  };
+  const source = { customers, customerGroups: [group], products, orders: [
+    order(date(0), 10, { customerId: 'a', totalValue: 100, totalWeight: 20 }),
+    order(date(0), 10, { customerId: 'b', totalValue: 200, totalWeight: 40 }),
+    order(date(-1), 10, { customerId: 'a', totalValue: 40, totalWeight: 8 }),
+    order(date(-1), 10, { customerId: 'b', totalValue: 60, totalWeight: 12 }),
+  ] };
+  const { default: HomePage } = load('app/page.tsx', id => {
+    if (id === '@/lib/use-dashboard-records') return { useDashboardRecords: () => ({ rows: source.orders, loading: false }) };
+    if (id === '@/lib/store') return { useCrmStore: () => source };
+    if (id === '@/components/dashboard-commission') return { DashboardCommission: () => null };
+    return id.endsWith('.css') ? {} : require(id);
+  });
+  const html = renderToStaticMarkup(React.createElement(HomePage));
+  const metrics = html.match(/aria-label="Indicadores de vendas">([\s\S]*?)<\/section>/)[1];
+  assert.match(metrics, /300,00/);
+  assert.match(metrics, /60 kg/);
+  assert.equal((metrics.match(/<strong>2<\/strong>/g) ?? []).length, 1);
+  assert.doesNotMatch(metrics, /Clientes com compra/);
+  assert.match(metrics, /Anterior:.*100,00/);
+  assert.match(metrics, /Anterior: 20 kg/);
+  assert.match(html, /Faturamento <b>[^<]*300,00<\/b>/);
+  assert.match(html, /Peso <b>60 kg<\/b>/);
+  assert.match(html, /Lojas positivadas <b>2<\/b>/);
+  assert.match(html, /Positivação por loja em colunas na faixa superior e faturamento em linha na faixa inferior/);
+  assert.ok(html.indexOf("dashboard-revenue-stores") < html.indexOf("dashboard-revenue-financial"));
 });
 
 test('resumo de comissao usa total completo da rede mesmo quando a tabela mostra somente Sul', () => {

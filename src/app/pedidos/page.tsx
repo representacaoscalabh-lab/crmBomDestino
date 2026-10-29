@@ -1,6 +1,7 @@
 "use client";
 
 import { ImportIssues } from "@/components/import-issues";
+import { networkImportReview } from "@/lib/network-import-review";
 import { OesaImportModal } from "@/components/oesa-import-modal";
 import { OesaScreenshotsModal } from "@/components/oesa-screenshots-modal";
 import { OrderRemittancesManager } from "@/components/order-remittances-manager";
@@ -9,13 +10,13 @@ import { findImportRecords } from "@/lib/import-existing-records";
 import { RecordPagination } from "@/components/record-pagination";
 import { getRecordDetail, useRecordPage } from "@/lib/use-record-page";
 import { importFailureMessage } from "@/lib/import-validation";
-import { createOrderRemittance, failOrderRemittanceImport, finishOrderRemittanceImport } from "@/lib/order-remittances";
+import { createOrderRemittance, failOrderRemittanceImport, finishOrderRemittanceImport, useOrderRemittances } from "@/lib/order-remittances";
 import { useAuth } from "@/lib/auth";
 import { useMartMinasSettings } from "@/lib/mart-minas-settings";
 import { useOesaNovaSafraSettings } from "@/lib/oesa-nova-safra-settings";
 
 import { useMemo, useState } from "react";
-import { CalendarClock, CalendarDays, ClipboardList, Database, Download, Eye, FileText, Network, PackageCheck, Pencil, Plus, RefreshCw, Search, ShoppingCart, SlidersHorizontal, Trash2, Upload, UserRound, X } from "lucide-react";
+import { CalendarClock, CalendarDays, Check, ClipboardList, Database, Download, Eye, FileText, Network, PackageCheck, Pencil, Plus, RefreshCw, Search, ShoppingCart, SlidersHorizontal, Trash2, Upload, UserRound, X } from "lucide-react";
 import { useCrmStore, useCrmResources } from "@/lib/store";
 import { getPackageValues } from "@/lib/product-packaging";
 import { downloadXlsx } from "@/lib/xlsx";
@@ -148,10 +149,11 @@ export default function OrdersPage() {
   const [cityDraft, setCityDraft] = useState("");
   const [segmentDraft, setSegmentDraft] = useState("");
   const [networkDraft, setNetworkDraft] = useState("");
+  const [remittanceDraft, setRemittanceDraft] = useState("");
   const [startDraft, setStartDraft] = useState(defaultDateRange.start);
   const [endDraft, setEndDraft] = useState(defaultDateRange.end);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
-  const [filters, setFilters] = useState({ search: "", customerName: "", city: "", segment: "", network: "", start: defaultDateRange.start, end: defaultDateRange.end });
+  const [filters, setFilters] = useState({ search: "", customerName: "", city: "", segment: "", network: "", remittance: "", start: defaultDateRange.start, end: defaultDateRange.end });
   const [showNetworkImportModal, setShowNetworkImportModal] = useState(false);
   const [showOesaImportModal, setShowOesaImportModal] = useState(false);
   const [showOesaPrints, setShowOesaPrints] = useState(false);
@@ -166,6 +168,8 @@ export default function OrdersPage() {
   const [networkBonificationsPreview, setNetworkBonificationsPreview] = useState<Omit<Bonification, "id">[]>([]);
   const [networkDetected, setNetworkDetected] = useState({ orders: 0, bonifications: 0 });
   const [networkWarnings, setNetworkWarnings] = useState<string[]>([]);
+  const [networkNotices, setNetworkNotices] = useState<string[]>([]);
+  const [networkReview, setNetworkReview] = useState("");
   const [showOrderModal, setShowOrderModal] = useState(false);
   useCrmResources(["products", "payment_terms"], showOrderModal || showNetworkImportModal || showOesaImportModal || showOesaPrints);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
@@ -197,9 +201,21 @@ export default function OrdersPage() {
       segments: uniqueValues(customers.map((customer) => customer.segment ?? "")),
     };
   }, [customers, legacyOrders]);
+  const martRemittances = useOrderRemittances(martMinasSettings.groupId ?? "", Boolean(martMinasSettings.groupId), false);
+  const oesaRemittances = useOrderRemittances(oesaSettings.groupId ?? "", Boolean(oesaSettings.groupId), false);
+  const remittanceOptions = useMemo(() => {
+    const remittances = [...martRemittances.remittances, ...oesaRemittances.remittances];
+    return [...new Map(remittances.map((remittance) => [remittance.id, remittance])).values()]
+      .sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
+  }, [martRemittances.remittances, oesaRemittances.remittances]);
   const page = useRecordPage("orders", { start: filters.start, end: filters.end, query: filters.search, customerName: filters.customerName, city: filters.city ? [filters.city] : [], network: filters.network, segment: filters.segment });
   const orders = page.rows.map(row => ({ ...row, items: [] })) as unknown as Array<Order & { itemCount?: number }>;
-  const filtered = orders;
+  const filtered = orders.filter((order) => {
+    if (!filters.remittance) return true;
+    if (filters.remittance === "assigned") return Boolean(order.remittanceId);
+    if (filters.remittance === "unassigned") return !order.remittanceId;
+    return order.remittanceId === filters.remittance;
+  });
   const pageOrderValue = filtered.reduce((sum, order) => sum + order.totalValue, 0);
   const pageOrderWeight = filtered.reduce((sum, order) => sum + order.totalWeight, 0);
   const sorted = orders;
@@ -213,10 +229,10 @@ export default function OrdersPage() {
     catch (cause) { setExportError(cause instanceof Error ? cause.message : "Falha ao abrir pedido."); }
   }
   const invalidFilterDateRange = Boolean(startDraft && endDraft && startDraft > endDraft);
-  const additionalFilterCount = [customerNameDraft, cityDraft, segmentDraft, networkDraft].filter(Boolean).length;
-  const hasDraftFiltersToClear = Boolean(searchDraft || customerNameDraft || cityDraft || segmentDraft || networkDraft
+  const additionalFilterCount = [customerNameDraft, cityDraft, segmentDraft, networkDraft, remittanceDraft].filter(Boolean).length;
+  const hasDraftFiltersToClear = Boolean(searchDraft || customerNameDraft || cityDraft || segmentDraft || networkDraft || remittanceDraft
     || startDraft !== defaultDateRange.start || endDraft !== defaultDateRange.end
-    || filters.search || filters.customerName || filters.city || filters.segment || filters.network
+    || filters.search || filters.customerName || filters.city || filters.segment || filters.network || filters.remittance
     || filters.start !== defaultDateRange.start || filters.end !== defaultDateRange.end);
   const suggestedCustomers = useMemo(() => customerQuery.trim().length < 2 ? [] : customers.filter((customer) => `${customer.name} ${customer.code} ${customer.city}`.toLowerCase().includes(customerQuery.toLowerCase())).slice(0, 6), [customers, customerQuery]);
   const suggestedProducts = useMemo(() => productQuery.trim().length < 2 ? [] : products.filter((product) => `${product.codeBox} ${product.codeHalfBox} ${product.description}`.toLowerCase().includes(productQuery.toLowerCase())).slice(0, 6), [products, productQuery]);
@@ -255,6 +271,8 @@ export default function OrdersPage() {
     setNetworkBonificationsPreview([]);
     setNetworkDetected({ orders: 0, bonifications: 0 });
     setNetworkWarnings([]);
+    setNetworkNotices([]);
+    setNetworkReview("");
     setShowNetworkImportModal(true);
   }
 
@@ -273,6 +291,8 @@ export default function OrdersPage() {
       setNetworkBonificationsPreview([]);
       setNetworkDetected({ orders: 0, bonifications: 0 });
       setNetworkWarnings([]);
+      setNetworkNotices([]);
+      setNetworkReview("");
       const parsedOrders = await parseNetworkOrderPdf(new Uint8Array(await networkPdf.arrayBuffer()), setNetworkProgress);
       setNetworkDetected({ orders: parsedOrders.filter((entry) => entry.documentType === "order").length, bonifications: parsedOrders.filter((entry) => entry.documentType === "bonification").length });
       const numbers = parsedOrders.map(record => `${record.orderNumber}/L`);
@@ -282,6 +302,8 @@ export default function OrdersPage() {
       setNetworkPreview(result.orders);
       setNetworkBonificationsPreview(bonusResult.bonifications);
       setNetworkWarnings([...new Set([...result.warnings, ...bonusResult.warnings])]);
+      setNetworkNotices([...new Set(parsedOrders.flatMap((entry) => entry.notices ?? []))]);
+      setNetworkReview(networkImportReview(parsedOrders, result.orders, bonusResult.bonifications, [...result.warnings, ...bonusResult.warnings], customers, products));
       setNetworkProcessed(true);
       if (!result.orders.length && !bonusResult.bonifications.length) setNetworkError("Nenhum pedido ou bonificação pôde ser importado. Confira os CNPJs, os códigos de produto e os avisos abaixo.");
     } catch (cause) {
@@ -315,6 +337,8 @@ export default function OrdersPage() {
       setShowNetworkImportModal(false);
       setNetworkPreview([]);
       setNetworkWarnings([]);
+      setNetworkNotices([]);
+      setNetworkReview("");
     } catch (cause) {
       const message = importFailureMessage(cause, "Não foi possível salvar os pedidos. Verifique a conexão e tente novamente.");
       if (remittanceInfo) {
@@ -586,19 +610,34 @@ export default function OrdersPage() {
         <article><span>Peso exibido</span><strong>{kg(pageOrderWeight)}</strong><small>Soma dos pedidos nesta página</small></article>
         <article><span>Valor exibido</span><strong>{money(pageOrderValue)}</strong><small>Soma dos pedidos nesta página</small></article>
       </section>
-      <form className="order-filter-card orders-compact-filters" onSubmit={(event) => { event.preventDefault(); if (!invalidFilterDateRange) setFilters({ search: searchDraft, customerName: customerNameDraft, city: cityDraft, segment: segmentDraft, network: networkDraft, start: startDraft, end: endDraft }); }}>
+      <form className="order-filter-card orders-compact-filters" onSubmit={(event) => { event.preventDefault(); if (!invalidFilterDateRange) setFilters({ search: searchDraft, customerName: customerNameDraft, city: cityDraft, segment: segmentDraft, network: networkDraft, remittance: remittanceDraft, start: startDraft, end: endDraft }); }}>
         <div className="orders-quick-filters">
           <div className="search-field"><Search size={17} /><input aria-label="Buscar pedidos por número, nota fiscal, código ou CNPJ" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Buscar pedido, NF, código ou CNPJ" /></div>
           <div className="orders-compact-period" role="group" aria-label="Período de emissão"><input aria-label="Data inicial" type="date" max={endDraft || undefined} value={startDraft} onChange={(event) => setStartDraft(event.target.value)} /><span aria-hidden="true">até</span><input aria-label="Data final" type="date" min={startDraft || undefined} value={endDraft} onChange={(event) => setEndDraft(event.target.value)} /></div>
-          <button type="button" className={`button button-outline orders-filter-toggle ${showMoreFilters ? "orders-filter-toggle-active" : ""}`} aria-expanded={showMoreFilters} aria-controls="orders-extra-filters" onClick={() => setShowMoreFilters((show) => !show)}><SlidersHorizontal size={15} /> Filtros{additionalFilterCount > 0 && <span>{additionalFilterCount}</span>}</button>
+          <button type="button" className={`button button-outline orders-filter-toggle ${showMoreFilters ? "orders-filter-toggle-active" : ""}`} aria-expanded={showMoreFilters} aria-controls="orders-extra-filters" onClick={() => setShowMoreFilters((show) => !show)}><SlidersHorizontal size={15} /> Filtros{filters.remittance && <span className="orders-filter-default-indicator"><Check size={11} /> Remessa filtrada</span>}{additionalFilterCount > 0 && <span>{additionalFilterCount}</span>}</button>
           <button type="submit" className="button button-primary" disabled={invalidFilterDateRange}>Aplicar</button>
-          <button type="button" className="icon-button orders-clear-filters" title="Limpar filtros" aria-label="Limpar filtros e restaurar o mês atual" disabled={!hasDraftFiltersToClear} onClick={() => { setSearchDraft(""); setCustomerNameDraft(""); setCityDraft(""); setSegmentDraft(""); setNetworkDraft(""); setStartDraft(defaultDateRange.start); setEndDraft(defaultDateRange.end); setFilters({ search: "", customerName: "", city: "", segment: "", network: "", start: defaultDateRange.start, end: defaultDateRange.end }); }}><X size={17} /></button>
+          <button type="button" className="icon-button orders-clear-filters" title="Limpar filtros" aria-label="Limpar filtros e restaurar o mês atual" disabled={!hasDraftFiltersToClear} onClick={() => { setSearchDraft(""); setCustomerNameDraft(""); setCityDraft(""); setSegmentDraft(""); setNetworkDraft(""); setRemittanceDraft(""); setStartDraft(defaultDateRange.start); setEndDraft(defaultDateRange.end); setFilters({ search: "", customerName: "", city: "", segment: "", network: "", remittance: "", start: defaultDateRange.start, end: defaultDateRange.end }); }}><X size={17} /></button>
         </div>
         {showMoreFilters && <div className="orders-extra-filters" id="orders-extra-filters">
           <label><span>Nome do cliente</span><div className="search-field"><Search size={15} /><input value={customerNameDraft} onChange={(event) => setCustomerNameDraft(event.target.value)} placeholder="Buscar por nome" /></div></label>
           <label><span>Cidade</span><select value={cityDraft} onChange={(event) => setCityDraft(event.target.value)}><option value="">Todas as cidades</option>{filterOptions.cities.map((city) => <option key={city} value={city}>{city}</option>)}</select></label>
           <label><span>Rede</span><select value={networkDraft} onChange={(event) => setNetworkDraft(event.target.value)}><option value="">Todas as redes</option>{customerGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
           <label><span>Segmento</span><select value={segmentDraft} onChange={(event) => setSegmentDraft(event.target.value)}><option value="">Todos os segmentos</option>{filterOptions.segments.map((segment) => <option key={segment} value={segment}>{segment}</option>)}</select></label>
+          <div className={`orders-remittance-filter ${remittanceDraft === "" ? "orders-remittance-filter-default" : ""}`}>
+            <div className="orders-remittance-filter-heading"><span>Remessa</span><span className="orders-remittance-default-badge"><Check size={12} /> {remittanceDraft === "" ? "SEM FILTRO · PADRÃO" : "FILTRO ATIVO"}</span></div>
+            <div className="orders-remittance-choices" role="group" aria-label="Tipo de filtro de remessa">
+              <button type="button" className={`orders-remittance-choice ${remittanceDraft === "assigned" ? "orders-remittance-choice-active" : ""}`} aria-pressed={remittanceDraft === "assigned"} onClick={() => setRemittanceDraft("assigned")}>
+                <span className="orders-remittance-choice-mark"><Check size={14} /></span><span className="orders-remittance-choice-copy"><strong>Com remessa</strong><small>Pedidos vinculados</small></span>
+              </button>
+              <button type="button" className={`orders-remittance-choice ${remittanceDraft === "" ? "orders-remittance-choice-active" : ""}`} aria-pressed={remittanceDraft === ""} onClick={() => setRemittanceDraft("")}>
+                <span className="orders-remittance-choice-mark"><Check size={14} /></span><span className="orders-remittance-choice-copy"><strong>Todas</strong><small>Com e sem remessa</small></span><span className="orders-remittance-choice-tag">Padrão</span>
+              </button>
+              <button type="button" className={`orders-remittance-choice ${remittanceDraft === "unassigned" ? "orders-remittance-choice-active" : ""}`} aria-pressed={remittanceDraft === "unassigned"} onClick={() => setRemittanceDraft("unassigned")}>
+                <span className="orders-remittance-choice-mark"><Check size={14} /></span><span className="orders-remittance-choice-copy"><strong>Sem remessa</strong><small>Pedidos não vinculados</small></span>
+              </button>
+            </div>
+            <label className="orders-remittance-specific"><span>Ou escolha uma remessa específica</span><select aria-label="Escolher remessa específica" value={remittanceDraft !== "assigned" && remittanceDraft !== "unassigned" ? remittanceDraft : ""} onChange={(event) => setRemittanceDraft(event.target.value)}><option value="">Todas as remessas específicas</option>{remittanceOptions.map((remittance) => <option key={remittance.id} value={remittance.id}>{remittance.name}</option>)}</select></label>
+          </div>
         </div>}
       </form>
       {invalidFilterDateRange && <div className="import-feedback feedback-warning" role="alert">A data inicial não pode ser posterior à data final.</div>}
@@ -652,7 +691,7 @@ export default function OrdersPage() {
       <section className="modal-card order-image-import-modal network-order-import-modal" role="dialog" aria-modal="true" aria-labelledby="network-order-import-title">
         <div className="order-editor-heading">
           <div className="order-editor-icon"><FileText size={21} /></div>
-          <div><p className="eyebrow">IMPORTAÇÃO DE REDE</p><h2 id="network-order-import-title">Pedidos e bonificações do PDF</h2><p>O título de cada página define o tipo; o CNPJ de faturamento identifica a loja.</p></div>
+          <div><p className="eyebrow">IMPORTAÇÃO DE REDE · LEITOR PDF/OCR v3</p><h2 id="network-order-import-title">Pedidos e bonificações do PDF</h2><p>O título de cada página define o tipo; o CNPJ de faturamento identifica a loja.</p></div>
           <button type="button" className="icon-button" aria-label="Fechar" disabled={networkImporting} onClick={() => setShowNetworkImportModal(false)}><X size={20} /></button>
         </div>
         <div className="order-image-import-body">
@@ -666,6 +705,8 @@ export default function OrdersPage() {
                 setNetworkBonificationsPreview([]);
                 setNetworkDetected({ orders: 0, bonifications: 0 });
                 setNetworkWarnings([]);
+                setNetworkNotices([]);
+                setNetworkReview("");
                 setNetworkProgress(0);
                 if (file && file.size > 50 * 1024 * 1024) {
                   setNetworkError("O PDF excede o limite de 50 MB.");
@@ -679,10 +720,12 @@ export default function OrdersPage() {
               <span className="order-image-drop-icon"><Upload size={21} /></span><span><strong>{networkPdf ? networkPdf.name : "Escolher PDF"}</strong><small>PDF · até 50 MB</small></span>
               <span className="button button-outline">Selecionar arquivo</span>
             </label>
-            <div className="order-image-guide"><strong>Campos utilizados:</strong><span>CNPJ identifica o cliente/filial; Cod Forn corresponde ao código do produto; a quantidade importada é Qtde menos Qtd.Canc.</span><span>Custo Bruto dividido pela Qtde define o preço por embalagem. O peso usa o cadastro dos produtos e o peso total do PDF, quando disponível.</span></div>
+            <div className="order-image-guide"><strong>Campos utilizados:</strong><span>CNPJ identifica a loja e Cod Forn identifica o produto. Em Emb, CX usa a quantidade de caixas do PDF; KG divide os quilos pelo peso da caixa cadastrado e arredonda para o inteiro mais próximo, com mínimo de uma caixa. Qtd.Canc. é descontada antes da conversão.</span><span>Valor Unit. registra o preço do item. O valor final vem de Valor total do pedido, em Dados adicionais. O peso usa o cadastro e o peso total do PDF, quando disponível.</span></div>
           </section>
-          {networkImporting && <div className="order-image-progress" role="status"><div><span>Lendo páginas do PDF...</span><strong>{Math.round(networkProgress * 100)}%</strong></div><progress max="100" value={Math.round(networkProgress * 100)} /></div>}
+          {networkImporting && <div className="order-image-progress" role="status"><div><span>Lendo páginas e reconhecendo imagens do PDF...</span><strong>{Math.round(networkProgress * 100)}%</strong></div><progress max="100" value={Math.round(networkProgress * 100)} /><p className="order-import-note">PDFs em imagem usam OCR local e podem levar alguns minutos. Aguarde a conferência de todas as páginas.</p></div>}
+          {networkNotices.length > 0 && <details className="network-import-blank-pages" open><summary>Páginas em branco / sem produtos ({networkNotices.length})</summary><p>Informação para sua conferência. Estas páginas não bloqueiam os pedidos com produtos.</p><ul>{networkNotices.map((notice) => <li key={notice}>{notice}</li>)}</ul></details>}
           <ImportIssues error={networkError} warnings={networkWarnings} fileName={networkPdf?.name} />
+          {networkProcessed && networkReview && <details className="network-import-blank-pages"><summary>Conferência de todos os documentos e quantidades</summary><p>Inclui pedidos prontos, já existentes e bloqueados, com as páginas e quantidades de cada produto. Selecione o texto para copiar.</p><textarea aria-label="Conferência dos documentos do PDF" readOnly rows={10} value={networkReview} style={{ width: "100%", resize: "vertical" }} /></details>}
           {networkProcessed && <section className="network-import-results" aria-live="polite">
             <div className="network-import-summary"><strong>Prontos para salvar: {networkPreview.length} compra(s) · {networkBonificationsPreview.length} bonificação(ões)</strong><span>Identificados no PDF: {networkDetected.orders} compra(s) · {networkDetected.bonifications} bonificação(ões). {networkWarnings.length} aviso(s).</span></div>
             {networkPreview.length > 0 && <h3 className="network-import-type-heading">Pedidos de compra</h3>}

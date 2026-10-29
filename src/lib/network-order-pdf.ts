@@ -1,5 +1,7 @@
 import type { Bonification, Customer, Order, OrderItem, Product } from "@/lib/types";
 import { getPackageValues } from "@/lib/product-packaging";
+import { loadPdfRuntime } from "@/lib/pdf-runtime";
+import { createPdfOcrReader } from "@/lib/pdf-ocr";
 
 export type NetworkDocumentType = "order" | "bonification";
 
@@ -7,7 +9,10 @@ export type NetworkOrderPdfLine = {
   supplierCode: string;
   quantity: number;
   canceledQuantity: number;
+  measure?: "KG" | "CX";
+  /** Valor Unit. in the PDF's measure (per kg or per box). */
   unitPackagePrice: number;
+  grossLineTotal?: number;
 };
 
 export type NetworkOrderPdf = {
@@ -20,6 +25,8 @@ export type NetworkOrderPdf = {
   totalGrossValue?: number;
   lines: NetworkOrderPdfLine[];
   warnings?: string[];
+  notices?: string[];
+  sourcePages?: number[];
 };
 
 export type NetworkOrderImportResult = {
@@ -131,7 +138,7 @@ function readOrderTotalWeight(lines: TextLine[]) {
 }
 
 function words(line: TextLine): TextLine["items"] {
-  return line.items.flatMap((item) => [...item.text.matchAll(/\S+/g)].map((match) => ({
+  return line.items.flatMap((item) => [...item.text.matchAll(/Qtde\.?|Qtd\.?\s*Canc\.?|\S+/gi)].map((match) => ({
     text: match[0],
     x: item.x + (match.index ?? 0) / item.text.length * (item.width ?? 0),
     width: match[0].length / item.text.length * (item.width ?? 0),
@@ -151,6 +158,18 @@ function readLabeledNumber(lines: TextLine[], label: RegExp) {
 
 function readOrderLines(lines: TextLine[], warnings: string[] = []): NetworkOrderPdfLine[] {
   const result: NetworkOrderPdfLine[] = [];
+  if (!lines.length) return result;
+  const text = normalizeText(lines.map(lineText).join(" "));
+  // Some orders end on a separate page containing only the repeated billing header
+  // and signatures. It contributes no products and must not invalidate the order.
+  const tableEvidence = /\bQTDE\b|\bQTD\.?\s*CANC|\bCOD\s+FORN\b|\bTOTAIS\b/.test(text);
+  const closingSignature = text.replace(/[^A-Z0-9]/g, "").includes("MARTMINASDISTRIBUICAOLTDALACTEOS");
+  const productEvidence = lines.some((line) => {
+    const fields = words(line);
+    return /^\d{3,10}$/.test(fields[0]?.text ?? "")
+      && fields.filter((item) => numericField(item.text)).length >= 3;
+  });
+  if (!tableEvidence && !productEvidence && closingSignature) return [];
   const costHeaderLine = lines.find((line) => line.top > 100 && words(line).some((item) => /^CUSTO$/i.test(item.text)));
   const headers = costHeaderLine ? words(costHeaderLine).filter((item) => !/^(BRUTO|ITEM|IPI|UNIT\.?)$/i.test(item.text)) : [];
   const costHeader = headers.find((item) => /^CUSTO$/i.test(item.text));
@@ -161,21 +180,24 @@ function readOrderLines(lines: TextLine[], warnings: string[] = []): NetworkOrde
   const costRight = costHeader && nextHeader ? (center(costHeader) + center(nextHeader)) / 2 : NaN;
   const headerWords = lines.filter((line) => costHeaderLine && Math.abs(line.top - costHeaderLine.top) < 22).flatMap(words);
   const quantityHeader = headerWords.find((item) => /^QTDE\.?$/i.test(item.text));
-  const canceledHeader = headerWords.find((item) => /^QTD\.?CANC\.?$/i.test(item.text));
+  const canceledHeader = headerWords.find((item) => /^QTD\.?\s*CANC\.?$/i.test(item.text))
+    ?? headerWords.find((item) => /^QTD\.?$/i.test(item.text)
+      && headerWords.some((suffix) => /^CANC\.?$/i.test(suffix.text) && Math.abs(suffix.x - item.x) < 45));
   const packageHeader = headerWords.find((item) => /^EMB\.?$/i.test(item.text));
   const unitHeader = headerWords.find((item) => /^UNIT\.?$/i.test(item.text) && (!canceledHeader || item.x > canceledHeader.x));
   const sequenceHeader = headerWords.find((item) => /^SEQ\.?$/i.test(item.text));
-  if (!costHeaderLine || !costHeader || !quantityHeader || !canceledHeader || !Number.isFinite(costLeft) || !Number.isFinite(costRight)) {
+  if (!costHeaderLine || !costHeader || !quantityHeader || !canceledHeader || !unitHeader || !Number.isFinite(costLeft) || !Number.isFinite(costRight)) {
     warnings.push("Não foi possível identificar as colunas Qtde, Qtd.Canc. e Custo Bruto. Nenhum produto desta página foi importado; confira o PDF original.");
     return [];
   }
   const quantityGap = Math.abs(center(canceledHeader) - center(quantityHeader));
   const quantityLeft = packageHeader ? (center(quantityHeader) + center(packageHeader)) / 2 : center(quantityHeader) - quantityGap;
   const quantityRight = (center(quantityHeader) + center(canceledHeader)) / 2;
-  const nextAmountHeader = headers.find((item) => item.x > canceledHeader.x && /^VALOR$/i.test(item.text));
-  const amountHeader = unitHeader ?? nextAmountHeader;
-  const canceledRight = amountHeader ? (center(canceledHeader) + center(amountHeader)) / 2 : center(canceledHeader) + quantityGap;
-  const tableTop = costHeaderLine.top;
+  const canceledRight = (center(canceledHeader) + center(unitHeader)) / 2;
+  const unitLeft = canceledRight;
+  const itemHeader = headers.find((item) => item.x > unitHeader.x && /^VALOR$/i.test(item.text));
+  const unitRight = itemHeader ? (center(unitHeader) + center(itemHeader)) / 2 : costLeft;
+  const tableTop = Math.max(...lines.filter((line) => Math.abs(line.top - costHeaderLine.top) < 22 && words(line).some((item) => /^(BRUTO|UNIT\.?)$/i.test(item.text))).map((line) => line.top), costHeaderLine.top);
   const tableBottom = lines.find((line) => line.top > tableTop && /\bTOTAIS\b/.test(normalizeText(lineText(line))))?.top ?? Infinity;
   for (const line of lines) {
     if (line.top <= tableTop || line.top >= tableBottom) continue;
@@ -188,24 +210,42 @@ function readOrderLines(lines: TextLine[], warnings: string[] = []): NetworkOrde
     const grossCostField = fields.find((item) => center(item) >= costLeft && center(item) < costRight && numericField(item.text));
     const quantity = quantityField ? parsePdfNumber(quantityField.text) : NaN;
     const canceledQuantity = canceledField ? parsePdfNumber(canceledField.text) : 0;
-    // Custo Bruto is the total for the line, so convert it to a package price.
-    const unitPackagePrice = grossCostField && quantity > 0
-      ? parsePdfNumber(grossCostField.text) / quantity
-      : NaN;
+    const measureField = packageHeader && fields.find((item) => item.x >= packageHeader.x - 10
+      && center(item) < quantityLeft && /^(KG|CX)(?:\d+(?:[,.]\d+)?)?$/i.test(item.text));
+    const measure = measureField?.text.match(/^(KG|CX)/i)?.[1].toUpperCase() as "KG" | "CX" | undefined;
+    if (!measure) {
+      warnings.push(`Código de produto ${codeField.text}: não foi possível identificar KG ou CX na coluna Emb; confira o PDF.`);
+      continue;
+    }
+    const priceField = fields.find((item) => center(item) >= unitLeft && center(item) < unitRight && numericField(item.text));
+    const unitPackagePrice = priceField ? parsePdfNumber(priceField.text) : NaN;
+    const grossLineTotal = grossCostField ? parsePdfNumber(grossCostField.text) : NaN;
+    const itemField = fields.find((item) => center(item) >= unitRight && center(item) < costLeft && numericField(item.text));
+    if (itemField && canceledQuantity === 0 && Math.abs(parsePdfNumber(itemField.text) - quantity * unitPackagePrice) > 0.05) {
+      warnings.push(`Código de produto ${codeField.text}: Qtde × Valor Unit. difere de Valor Item; confira a linha no PDF.`);
+      continue;
+    }
     if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(canceledQuantity) || canceledQuantity < 0 || canceledQuantity > quantity) {
       warnings.push(`Código de produto ${codeField.text}: Qtde ou Qtd.Canc. inválida; item ignorado. Confira as quantidades no PDF.`);
       continue;
     }
-    if (!Number.isFinite(unitPackagePrice) || unitPackagePrice < 0) {
-      warnings.push(`Código de produto ${codeField.text}: Custo Bruto ausente, inválido ou negativo; item ignorado. Confira a coluna no PDF.`);
+    if (!Number.isFinite(unitPackagePrice) || unitPackagePrice < 0 || !Number.isFinite(grossLineTotal) || grossLineTotal < 0) {
+      warnings.push(`Código de produto ${codeField.text}: Valor Unit. ou Custo Bruto ausente, inválido ou negativo; item ignorado. Confira as colunas no PDF.`);
       continue;
     }
     result.push({
       supplierCode: codeField.text,
       quantity,
       canceledQuantity,
+      measure,
       unitPackagePrice,
+      grossLineTotal,
     });
+  }
+  const totalsLine = lines.find((line) => line.top === tableBottom);
+  const totalQuantityField = totalsLine && words(totalsLine).find((item) => center(item) >= quantityLeft && center(item) < quantityRight && numericField(item.text));
+  if (totalQuantityField && Math.abs(parsePdfNumber(totalQuantityField.text) - result.reduce((sum, item) => sum + item.quantity - item.canceledQuantity, 0)) > 0.001) {
+    warnings.push("A soma das quantidades dos produtos difere da linha TOTAIS do PDF; confira os itens antes de importar.");
   }
   return result;
 }
@@ -224,7 +264,7 @@ export function parseNetworkOrderPage(items: TextItem[], pageHeight: number, pag
     totalGrossWeight: readOrderTotalWeight(lines),
     totalGrossValue: readLabeledNumber(lines, /VALOR\s+TOTAL\s+D[OE]\s+PEDIDO/),
   } : null;
-  return { order, itemCount: orderLines.length, warnings, recognizedTitle: documentType !== null,
+  return { order, itemCount: orderLines.length, warnings, isBlankPage: !orderLines.length && !warnings.length, hasText: items.some((item) => item.str.trim()), recognizedTitle: documentType !== null,
     diagnostic: { documentTitle, documentType, orderNumber, customerCnpj } };
 }
 
@@ -232,56 +272,87 @@ export async function parseNetworkOrderPdf(
   data: Uint8Array,
   onProgress: (progress: number) => void,
 ): Promise<NetworkOrderPdf[]> {
-  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL("../../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url).toString();
+  const pdfjs = await loadPdfRuntime();
   const document = await pdfjs.getDocument({ data, isEvalSupported: false }).promise;
-  const orders = new Map<string, NetworkOrderPdf>();
-  let hasText = false;
-  let recognizedItems = 0;
-  const fileWarnings: string[] = [];
+  let ocr: Awaited<ReturnType<typeof createPdfOcrReader>> | undefined;
+  const pages: ReturnType<typeof parseNetworkOrderPage>[] = [];
   try {
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
-      const content = await page.getTextContent();
-      const textItems = content.items
-        .filter((item) => "str" in item)
-        .map((item) => ({ str: item.str, transform: item.transform, width: item.width }));
-      hasText ||= textItems.some((item) => item.str.trim());
-      const parsed = parseNetworkOrderPage(textItems, page.view[3] - page.view[1], page.view[2] - page.view[0]);
-      recognizedItems += parsed.itemCount;
-
-      if (parsed.order) {
-        const incoming = parsed.order;
-        const key = `${incoming.documentType}:${incoming.orderNumber}:${incoming.customerCnpj}`;
-        const previous = orders.get(key);
-        const warnings = (incoming.warnings ?? []).map((warning) => `Documento ${incoming.orderNumber}, página ${pageNumber}: ${warning}`);
-        orders.set(key, previous ? {
-          ...previous, lines: [...previous.lines, ...incoming.lines], warnings: [...(previous.warnings ?? []), ...warnings],
-          issueDate: previous.issueDate || incoming.issueDate,
-          totalGrossWeight: incoming.totalGrossWeight ?? previous.totalGrossWeight,
-          totalGrossValue: incoming.totalGrossValue ?? previous.totalGrossValue,
-        } : { ...incoming, warnings });
-      } else if (parsed.itemCount || parsed.warnings.length || parsed.recognizedTitle) {
-        const detail = parsed.diagnostic;
-        fileWarnings.push(`Página ${pageNumber}: documento não preparado. Título lido: ${detail.documentTitle || "não identificado"}; tipo: ${detail.documentType === "bonification" ? "bonificação" : detail.documentType === "order" ? "compra" : "não identificado"}; número: ${detail.orderNumber || "não identificado"}; CNPJ: ${detail.customerCnpj || "não identificado"}; produtos lidos: ${parsed.itemCount}. Confira o cabeçalho desta página.`);
-      }
+      try {
+        const content = await page.getTextContent();
+        let items: TextItem[] = content.items.filter((item) => "str" in item)
+          .map((item) => ({ str: item.str, transform: item.transform, width: item.width }));
+        let height = page.view[3] - page.view[1];
+        let width = page.view[2] - page.view[0];
+        let parsed = parseNetworkOrderPage(items, height, width);
+        if (!parsed.hasText || parsed.warnings.length || !parsed.order) {
+          ocr ??= await createPdfOcrReader();
+          const recognized = await ocr.read(page, (progress) => onProgress((pageNumber - 1 + progress * 0.95) / document.numPages));
+          items = recognized.items; height = recognized.height; width = recognized.width;
+          const fallback = parseNetworkOrderPage(items, height, width);
+          if (!fallback.hasText && !recognized.isBlank) {
+            fallback.isBlankPage = false;
+            fallback.warnings.push("A página contém conteúdo, mas o OCR não reconheceu o texto. Confira a nitidez no PDF.");
+          }
+          if (!parsed.hasText || (fallback.order && !fallback.warnings.length) || fallback.itemCount > parsed.itemCount) parsed = fallback;
+        }
+        pages.push(parsed);
+      } finally { page.cleanup(); }
       onProgress(pageNumber / document.numPages);
     }
   } finally {
-    await document.destroy();
+    try { await ocr?.terminate(); } finally { await document.destroy(); }
+  }
+  return assembleNetworkOrderPages(pages);
+}
+
+export function assembleNetworkOrderPages(pages: ReturnType<typeof parseNetworkOrderPage>[]): NetworkOrderPdf[] {
+  const orders = new Map<string, NetworkOrderPdf>();
+  const hasText = pages.some((page) => page.hasText);
+  let recognizedItems = 0;
+  const fileWarnings: string[] = [];
+  const blankPageNotices: string[] = [];
+  for (const [index, parsed] of pages.entries()) {
+    const pageNumber = index + 1;
+    recognizedItems += parsed.itemCount;
+    const notices = parsed.isBlankPage
+      ? [`${parsed.order ? `Documento ${parsed.order.orderNumber}, ` : ""}página ${pageNumber}: Página em branco / sem produtos. Ignorada na importação; confira no PDF.`]
+      : [];
+    if (parsed.order) {
+      const incoming = parsed.order;
+      const key = `${incoming.documentType}:${incoming.orderNumber}:${incoming.customerCnpj}`;
+      const previous = orders.get(key);
+      const warnings = (incoming.warnings ?? []).map((warning) => `Documento ${incoming.orderNumber}, página ${pageNumber}: ${warning}`);
+      orders.set(key, previous ? {
+        ...previous, lines: [...previous.lines, ...incoming.lines], warnings: [...(previous.warnings ?? []), ...warnings], notices: [...(previous.notices ?? []), ...notices], sourcePages: [...(previous.sourcePages ?? []), pageNumber],
+        issueDate: previous.issueDate || incoming.issueDate,
+        totalGrossWeight: incoming.totalGrossWeight ?? previous.totalGrossWeight,
+        totalGrossValue: incoming.totalGrossValue ?? previous.totalGrossValue,
+      } : { ...incoming, warnings, notices, sourcePages: [pageNumber] });
+    } else if (parsed.isBlankPage) {
+      blankPageNotices.push(...notices);
+    } else if (parsed.itemCount || parsed.warnings.length || parsed.recognizedTitle) {
+      const detail = parsed.diagnostic;
+      fileWarnings.push(`Página ${pageNumber}: documento não preparado. Título lido: ${detail.documentTitle || "não identificado"}; tipo: ${detail.documentType === "bonification" ? "bonificação" : detail.documentType === "order" ? "compra" : "não identificado"}; número: ${detail.orderNumber || "não identificado"}; CNPJ: ${detail.customerCnpj || "não identificado"}; produtos lidos: ${parsed.itemCount}. Confira o cabeçalho desta página.`);
+    }
   }
 
   if (![...orders.values()].some((order) => order.lines.length)) {
-    if (!hasText) throw new Error("O PDF não contém texto pesquisável. Exporte o pedido original em PDF; arquivos digitalizados como imagem não podem ser lidos nesta importação.");
+    if (!hasText) throw new Error("Nenhum texto foi reconhecido no PDF, mesmo com leitura das imagens. Confira a nitidez das páginas e tente novamente.");
     if (orders.size) throw new Error(["Identifiquei o pedido e o CNPJ, mas não consegui ler os produtos com Custo Bruto. Confira se o PDF contém as colunas Cod Forn, Qtde e Custo Bruto no layout do Mart Minas.", ...[...orders.values()].flatMap((order) => order.warnings ?? [])].join("\n"));
     if (recognizedItems) throw new Error("Identifiquei produtos, mas não consegui identificar o cabeçalho do pedido ou o CNPJ da loja. Confira o número do pedido, o título e os dados de faturamento no PDF.");
     throw new Error("O PDF contém texto, mas o layout não foi reconhecido. Confira se é o PDF original de pedido ou bonificação do Mart Minas, com número do pedido, CNPJ da loja e coluna Custo Bruto.");
   }
   const result = [...orders.values()];
+  result[0].notices = [...blankPageNotices, ...(result[0].notices ?? [])];
   result.forEach((order) => {
     order.warnings = [...fileWarnings, ...(order.warnings ?? [])];
+    if (order.totalGrossValue === undefined) {
+      order.warnings.push(`Documento ${order.orderNumber}: Valor total do pedido não identificado em Dados adicionais; importação bloqueada para evitar um total incorreto.`);
+    }
     if (order.totalGrossValue !== undefined && !order.lines.some((line) => line.canceledQuantity > 0)) {
-      const readValue = order.lines.reduce((sum, line) => sum + line.unitPackagePrice * line.quantity, 0);
+      const readValue = order.lines.reduce((sum, line) => sum + (line.grossLineTotal ?? line.unitPackagePrice * line.quantity), 0);
       if (Math.abs(readValue - order.totalGrossValue) > 0.02) order.warnings.push(`Documento ${order.orderNumber}: a soma do Custo Bruto lido (${readValue.toFixed(2)}) difere do total do PDF (${order.totalGrossValue.toFixed(2)}). Confira os itens antes de importar.`);
     }
   });
@@ -323,7 +394,15 @@ export function buildNetworkOrderImport(
       continue;
     }
 
+    if (parsed.warnings?.length) {
+      warnings.push(`Pedido ${preOrder}: importação bloqueada por falha na leitura; confira o PDF completo.`);
+      continue;
+    }
     const items = buildImportedItems(parsed, products, warnings, preOrder);
+    if (items.length !== parsed.lines.filter((line) => line.quantity > line.canceledQuantity).length) {
+      warnings.push(`Pedido ${preOrder}: importação bloqueada para evitar um pedido com itens faltantes.`);
+      continue;
+    }
     if (!items.length) {
       warnings.push(`Pedido ${preOrder}: nenhum item cadastrado pôde ser importado.`);
       continue;
@@ -344,7 +423,7 @@ export function buildNetworkOrderImport(
       paymentTerm: customer.paymentTerm ?? "",
       status: "normal",
       items,
-      totalValue: Math.round(items.reduce((sum, item) => sum + (item.subtotal ?? 0), 0) * 100) / 100,
+      totalValue: parsed.totalGrossValue ?? Math.round(items.reduce((sum, item) => sum + (item.subtotal ?? 0), 0) * 100) / 100,
       totalWeight: items.reduce((sum, item) => sum + item.totalWeight, 0),
     });
     existingNumbers.add(orderIdentity);
@@ -381,6 +460,10 @@ export function buildNetworkBonificationImport(
       continue;
     }
     const items = buildImportedItems(parsed, products, warnings, `Bonificação ${bonusNumber}`);
+    if (parsed.warnings?.length || items.length !== parsed.lines.filter((line) => line.quantity > line.canceledQuantity).length) {
+      warnings.push(`Bonificação ${bonusNumber}: importação bloqueada por falha de leitura ou itens faltantes.`);
+      continue;
+    }
     if (!items.length) {
       warnings.push(`Bonificação ${bonusNumber}: nenhum produto cadastrado pôde ser importado.`);
       continue;
@@ -397,7 +480,7 @@ export function buildNetworkBonificationImport(
       reason: "Bonificação sem incidência de custo",
       notes: parsed.documentTitle,
       items,
-      totalValue: Math.round(items.reduce((sum, item) => sum + (item.subtotal ?? 0), 0) * 100) / 100,
+      totalValue: parsed.totalGrossValue ?? Math.round(items.reduce((sum, item) => sum + (item.subtotal ?? 0), 0) * 100) / 100,
       totalWeight: items.reduce((sum, item) => sum + item.totalWeight, 0),
     });
     existingNumbers.add(normalizeCode(bonusNumber));
@@ -422,13 +505,22 @@ function buildImportedItems(
     }
     const [{ product, packageKind }] = productMatches;
     const packageValues = getPackageValues(product, packageKind === "Meia caixa");
-    const packageQuantity = line.quantity - line.canceledQuantity;
-    if (!Number.isFinite(packageQuantity) || !Number.isFinite(packageValues.unitQuantity) || packageQuantity <= 0 || packageValues.unitQuantity <= 0) {
+    const requestedQuantity = line.quantity - line.canceledQuantity;
+    if (requestedQuantity === 0) return [];
+    const isKg = line.measure === "KG";
+    if (isKg && (!Number.isFinite(packageValues.weight) || packageValues.weight <= 0)) {
+      warnings.push(`${identifier}: código ${line.supplierCode} em KG sem peso por caixa válido no cadastro; informe um peso maior que zero antes de importar.`);
+      return [];
+    }
+    const packageQuantity = isKg ? Math.max(1, Math.round(requestedQuantity / packageValues.weight)) : requestedQuantity;
+    if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0 || !Number.isFinite(packageQuantity) || !Number.isFinite(packageValues.unitQuantity) || packageQuantity <= 0 || packageValues.unitQuantity <= 0) {
       warnings.push(`${identifier}: quantidade inválida para o código ${line.supplierCode}; item ignorado.`);
       return [];
     }
-    const packagePrice = line.unitPackagePrice;
-    const totalWeight = packageValues.weight * packageQuantity;
+    // Rounding changes only the number of packages, never the kg or value ordered.
+    const subtotal = Math.round(line.unitPackagePrice * requestedQuantity * 100) / 100;
+    const packagePrice = isKg ? subtotal / packageQuantity : line.unitPackagePrice;
+    const totalWeight = isKg ? requestedQuantity : packageValues.weight * packageQuantity;
     if (!Number.isFinite(packagePrice) || packagePrice < 0 || !Number.isFinite(totalWeight) || totalWeight < 0) {
       warnings.push(`${identifier}: código de produto ${line.supplierCode} com custo bruto ou peso inválido; item ignorado. Confira o PDF e o cadastro do produto.`);
       return [];
@@ -439,12 +531,12 @@ function buildImportedItems(
       description: product.description,
       packageKind,
       packageQuantity,
-      unitQuantity: packageValues.unitQuantity * packageQuantity,
+      unitQuantity: isKg ? requestedQuantity : packageValues.unitQuantity * packageQuantity,
       packagePrice,
-      unitPrice: packagePrice / packageValues.unitQuantity,
+      unitPrice: line.unitPackagePrice,
       totalWeight,
       discountPercent: 0,
-      subtotal: Math.round(packagePrice * packageQuantity * 100) / 100,
+      subtotal,
       boxQuantity: packageQuantity,
       pieces: packageValues.unitQuantity * packageQuantity,
       netWeight: 0,

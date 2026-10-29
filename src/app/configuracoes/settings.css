@@ -70,6 +70,90 @@
 .settings-page .settings-modal-actions { border-top-color: var(--line); }
 .dark-theme .settings-page .settings-tab-active { border-color: #694451; }
 .dark-theme .settings-page .admin-pill { color: #e5b4c4; }
+.settings-remittance-panel { overflow: hidden; }
+.settings-remittance-alert { margin: 14px 22px 0; }
+.settings-remittance-loading { display: flex; align-items: center; gap: 8px; padding: 18px 22px; color: var(--muted); font-size: 12px; }
+.settings-remittance-section-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; padding: 23px 24px 12px; }
+.settings-remittance-section-heading h3 { margin: 0; color: var(--ink); font-size: 15px; letter-spacing: -.02em; }
+.settings-remittance-section-heading p { margin: 4px 0 0; color: var(--muted); font-size: 11px; }
+.settings-remittance-section-heading > span { flex: 0 0 auto; padding: 6px 9px; border: 1px solid var(--line); border-radius: 20px; color: var(--muted); font-size: 10px; font-weight: 650; }
+.settings-remittance-list { display: grid; gap: 10px; padding: 5px 24px 23px; }
+.settings-remittance-card { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); transition: border-color .16s ease, box-shadow .16s ease; }
+.settings-remittance-card.is-expanded { border-color: color-mix(in srgb, var(--brand) 35%, var(--line)); box-shadow: 0 4px 14px rgb(50 27 33 / 5%); }
+.settings-remittance-card-main { display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: start; gap: 12px; padding: 15px; }
+.settings-remittance-card-icon { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 10px; background: var(--brand-soft); color: var(--brand); }
+.settings-remittance-card-copy { min-width: 0; }
+.settings-remittance-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.settings-remittance-title-row h4 { max-width: 100%; margin: 0; color: var(--ink); font-size: 13px; overflow-wrap: anywhere; }
+.settings-remittance-status { padding: 4px 7px; border-radius: 20px; background: var(--surface-soft); color: var(--muted); font-size: 9px; font-weight: 700; }
+.settings-remittance-status.status-ready { background: #eaf5ee; color: #26714e; }
+.settings-remittance-status.status-processing { background: #fff4df; color: #8c6018; }
+.settings-remittance-status.status-failed, .settings-remittance-status.status-deleting { background: #fbebed; color: #9c3d49; }
+.settings-remittance-card-copy > p { margin: 6px 0 0; color: var(--muted); font-size: 10px; }
+.settings-remittance-card-copy > p > span { padding: 0 3px; color: var(--line-strong, var(--muted)); }
+.settings-remittance-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 7px 13px; margin-top: 9px; color: var(--muted); font-size: 10px; }
+.settings-remittance-meta > span { display: inline-flex; min-width: 0; align-items: center; gap: 4px; }
+.settings-remittance-meta svg { flex: 0 0 auto; color: var(--brand); }
+.settings-remittance-source { max-width: min(100%, 300px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.settings-remittance-card-copy .settings-remittance-import-summary { padding: 8px 10px; margin-top: 10px; border-radius: 7px; background: var(--surface-soft); color: var(--ink); font-size: 10px; line-height: 1.5; }
+.settings-remittance-card-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 7px; }
+.settings-remittance-card-actions .button { min-height: 32px; padding: 0 9px; font-size: 10px; }
+.settings-remittance-card-actions .rotate { transform: rotate(180deg); }
+.settings-remittance-delete { border-color: #edcbd0 !important; color: #9c3d49 !important; }
+.settings-remittance-details { padding: 0 15px 16px 65px; border-top: 1px solid var(--line); }
+.settings-remittance-counts { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 0; }
+.settings-remittance-counts span { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 10px; }
+.settings-remittance-counts strong { margin-right: 3px; color: var(--brand); font-size: 13px; font-variant-numeric: tabular-nums; }
+.settings-remittance-record-group { display: grid; gap: 7px; margin-top: 10px; }
+.settings-remittance-record-group h5 { display: flex; align-items: center; gap: 7px; margin: 0 0 2px; color: var(--ink); font-size: 11px; }
+.settings-remittance-record-group h5 span { color: var(--muted); font-weight: 500; }
+.settings-remittance-record { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--canvas); }
+.settings-remittance-record > div { display: grid; min-width: 0; gap: 3px; }
+.settings-remittance-record > div:first-child span { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.settings-remittance-record > div:nth-child(2) { text-align: right; }
+.settings-remittance-record > div:nth-child(2) span, .settings-remittance-record > div:nth-child(2) small { color: var(--muted); font-size: 9px; white-space: nowrap; }
+.settings-remittance-record > strong, .settings-remittance-record > div:first-child strong { color: var(--ink); font-size: 10px; font-variant-numeric: tabular-nums; }
+.settings-remittance-record-group > .button { justify-self: start; margin-top: 3px; }
+.settings-remittance-empty { display: flex; align-items: center; flex-direction: column; gap: 7px; padding: 24px 16px; color: var(--muted); text-align: center; font-size: 11px; }
+.settings-remittance-empty svg { color: var(--brand); }
+.settings-remittance-empty strong { color: var(--ink); font-size: 12px; }
+.settings-remittance-history { border-top: 1px solid var(--line); padding-bottom: 15px; }
+.settings-remittance-search { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 11px; margin: 0 24px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); }
+.settings-remittance-search:focus-within { border-color: color-mix(in srgb, var(--brand) 45%, var(--line)); }
+.settings-remittance-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 11px; }
+.settings-remittance-timeline { display: grid; padding: 0 24px; }
+.settings-remittance-event { position: relative; display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 11px; padding: 11px 0; }
+.settings-remittance-event:not(:last-child)::after { position: absolute; top: 24px; bottom: -11px; left: 5px; width: 1px; background: var(--line); content: ""; }
+.settings-remittance-event-dot { z-index: 1; width: 11px; height: 11px; margin-top: 3px; border: 2px solid var(--surface); border-radius: 50%; background: #a7b0be; box-shadow: 0 0 0 1px var(--line); }
+.settings-remittance-event-dot.event-import_completed { background: #39805c; }
+.settings-remittance-event-dot.event-import_failed, .settings-remittance-event-dot.event-deleted { background: #a64753; }
+.settings-remittance-event-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.settings-remittance-event-heading strong { color: var(--ink); font-size: 11px; }
+.settings-remittance-event-heading time { flex: 0 0 auto; color: var(--muted); font-size: 9px; }
+.settings-remittance-event p { margin: 3px 0; color: var(--brand); font-size: 10px; font-weight: 650; }
+.settings-remittance-event small { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; line-height: 1.5; overflow-wrap: anywhere; }
+.dark-theme .settings-remittance-status.status-ready { background: #23392e; color: #8dd0a8; }
+.dark-theme .settings-remittance-status.status-processing { background: #3a3223; color: #e5c27b; }
+.dark-theme .settings-remittance-status.status-failed, .dark-theme .settings-remittance-status.status-deleting { background: #40272c; color: #efafb6; }
+.dark-theme .settings-remittance-delete { border-color: #70464e !important; color: #efafb6 !important; }
 @media (max-width: 1150px) { .settings-workspace { grid-template-columns: 225px minmax(0, 1fr); gap: 20px; }.settings-page .settings-request-card { flex-wrap: wrap; }.settings-page .settings-pending-status { margin-left: auto; } }
 @media (max-width: 950px) { .settings-workspace { grid-template-columns: 1fr; gap: 20px; }.settings-page .settings-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }.settings-menu-label, .settings-account { display: none; } }
 @media (max-width: 560px) { .settings-page { gap: 20px; }.settings-page .settings-hero { align-items: flex-start; flex-direction: column; gap: 14px; padding-bottom: 20px; }.settings-page .settings-hero h1 { font-size: 28px; }.settings-page .settings-tab { min-height: 84px; padding: 12px; gap: 8px; flex-wrap: wrap; }.settings-page .settings-tab-copy { flex-basis: calc(100% - 30px); }.settings-tab-copy strong { font-size: 12px; }.settings-tab-copy small { font-size: 10px; }.settings-page .settings-tab-count { display: none; }.settings-page .settings-section-heading { align-items: flex-start; padding: 20px 16px; gap: 10px; }.settings-page .settings-section-heading h2 { font-size: 17px; }.settings-page .settings-section-heading > div > p:last-child { font-size: 12px; }.settings-page .settings-section-icon { display: none; }.settings-page .settings-request-list { padding: 0 16px; }.settings-page .settings-note { padding: 14px 16px; }.settings-form-title { margin: 16px 16px 0; padding: 16px 14px 0; }.settings-page .settings-term-form { grid-template-columns: 1fr; margin: 0 16px 20px; padding: 16px 14px; }.settings-page .settings-term-actions { flex-wrap: wrap; }.settings-page .settings-term-actions .button { flex: 1; }.settings-list-toolbar { align-items: stretch; flex-direction: column-reverse; padding: 18px 16px; gap: 12px; }.settings-list-toolbar .search-field { width: 100%; flex-basis: auto; }.settings-page .settings-term-list { padding: 0 16px 10px; }.settings-page .settings-approval-modal { padding: 22px; }.settings-footnote { align-items: flex-start; font-size: 10px; } }
+@media (max-width: 700px) {
+  .settings-remittance-section-heading { align-items: flex-start; padding: 19px 16px 11px; }
+  .settings-remittance-list { padding: 5px 16px 18px; }
+  .settings-remittance-card-main { grid-template-columns: 34px minmax(0, 1fr); gap: 10px; padding: 12px; }
+  .settings-remittance-card-icon { width: 34px; height: 34px; }
+  .settings-remittance-card-actions { grid-column: 2; justify-content: flex-start; }
+  .settings-remittance-details { padding: 0 12px 13px; }
+  .settings-remittance-record { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .settings-remittance-record > strong { grid-column: 1 / -1; }
+  .settings-remittance-search { margin-right: 16px; margin-left: 16px; }
+  .settings-remittance-timeline { padding: 0 16px; }
+}
+@media (max-width: 420px) {
+  .settings-remittance-section-heading { flex-direction: column; gap: 8px; }
+  .settings-remittance-meta { align-items: flex-start; flex-direction: column; gap: 6px; }
+  .settings-remittance-card-actions .button { flex: 1; justify-content: center; }
+  .settings-remittance-event-heading { align-items: flex-start; flex-direction: column; gap: 3px; }
+}

@@ -26,10 +26,11 @@
 .mart-report-table tfoot { font-weight: 700; }
 @media (max-width: 760px) { .mart-report-cards { grid-template-columns: 1fr; } .mart-report-filters > button { flex: 1 1 150px; } }
 .network-remittance-report { padding: 20px; }
-.network-remittance-report > header { margin-bottom: 18px; }
-.network-remittance-report > header > div { display: flex; align-items: center; gap: 9px; color: var(--brand); }
+.network-remittance-report > header { display: grid; gap: 12px; margin-bottom: 18px; }
+.network-remittance-report > header > div:first-child { display: flex; align-items: center; gap: 9px; color: var(--brand); }
 .network-remittance-report > header h2 { padding: 0; color: var(--ink); }
 .network-remittance-report > header p, .network-remittance-empty { color: var(--mart-muted); }
+.network-remittance-header-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .network-remittance-picker { display: flex; flex-wrap: wrap; gap: 9px; margin: 0 0 18px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
 .network-remittance-picker legend { padding: 0 6px; color: var(--ink); font-size: 14px; font-weight: 600; }
 .network-remittance-picker label { display: flex; align-items: center; gap: 8px; min-width: min(100%, 220px); padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
@@ -38,13 +39,37 @@
 .network-remittance-picker small { color: var(--mart-muted); font-size: 12px; }
 .network-remittance-table-wrap { max-width: 100%; overflow: auto; }
 .network-remittance-table { width: 100%; border-collapse: collapse; }
-.network-remittance-table th, .network-remittance-table td { min-width: 88px; padding: 10px; border: 1px solid var(--line); text-align: right; white-space: nowrap; }
-.network-remittance-table thead th { background: var(--surface-soft); color: var(--ink); font-size: 13px; }
-.network-remittance-table th:first-child, .network-remittance-table tbody th { min-width: 130px; text-align: left; }
+.network-remittance-table th, .network-remittance-table td { min-width: 92px; padding: 10px; border: 1px solid var(--line); text-align: center; white-space: nowrap; }
+.network-remittance-table thead th { background: var(--surface-soft); color: var(--ink); font-size: 12px; }
+.network-remittance-table th:first-child, .network-remittance-table tbody th { min-width: 200px; text-align: left; }
 .network-remittance-table tbody th { color: var(--ink); font-size: 13px; }
 .network-remittance-table td { color: var(--ink); font-size: 13px; }
+.network-remittance-column-header { vertical-align: top; }
+.network-remittance-column-name { border: 0; background: none; color: inherit; font: inherit; font-weight: 700; cursor: pointer; padding: 0; text-align: center; }
+.network-remittance-store-button, .network-remittance-metric-button { width: 100%; border: 0; background: transparent; color: inherit; font: inherit; padding: 0; cursor: pointer; text-align: inherit; }
+.network-remittance-store-button { display: grid; gap: 4px; }
+.network-remittance-store-button span { font-weight: 700; }
+.network-remittance-store-button small { color: var(--mart-muted); font-size: 11px; }
+.network-remittance-store-button:not(:disabled):hover span { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
+.network-remittance-store-button:disabled { cursor: default; opacity: .7; }
+.network-remittance-metric-button { min-height: 32px; border-radius: 6px; text-align: center; }
+.network-remittance-metric-button:disabled { opacity: 0.45; cursor: default; }
+.network-remittance-detail-modal { width: min(980px, calc(100vw - 32px)); max-height: min(86vh, 900px); overflow: auto; }
+.network-remittance-detail-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 18px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--ink); }
+.network-remittance-detail-summary strong { font-size: 16px; }
+.network-remittance-detail-summary span { color: var(--mart-muted); }
+.network-remittance-detail-list { display: grid; gap: 14px; padding-top: 16px; }
+.network-remittance-detail-item { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface-soft); }
+.network-remittance-detail-item header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.network-remittance-detail-item header strong { display: block; color: var(--ink); }
+.network-remittance-detail-item header small { color: var(--mart-muted); }
+.network-remittance-detail-values { display: grid; justify-items: end; gap: 4px; }
+.network-remittance-detail-values span { color: var(--mart-muted); font-size: 12px; }
+.network-remittance-detail-item table { width: 100%; border-collapse: collapse; }
+.network-remittance-detail-item th, .network-remittance-detail-item td { padding: 10px 14px; border-top: 1px solid var(--line); text-align: left; font-size: 13px; }
+.network-remittance-detail-item thead th { background: rgba(0, 0, 0, 0.01); }
 .dark-theme .network-remittance-picker label { background: var(--surface); }
-@media (max-width: 760px) { .network-remittance-report { padding: 14px; } .network-remittance-picker { flex-direction: column; } .network-remittance-picker label { min-width: 0; } }
+@media (max-width: 760px) { .network-remittance-report { padding: 14px; } .network-remittance-picker { flex-direction: column; } .network-remittance-picker label { min-width: 0; } .network-remittance-header-actions { align-items: flex-start; } .network-remittance-detail-item header { flex-direction: column; align-items: flex-start; } }
 .mart-report { min-width: 0; --mart-muted: color-mix(in srgb, var(--ink) 78%, var(--surface)); color: var(--ink); font-size: 14px; }
 .mart-report-section, .mart-report-cards > *, .mart-report-table { min-width: 0; }
 .mart-kpis { margin-top: 20px; }
